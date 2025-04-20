@@ -1,16 +1,12 @@
 import {
-  AssetContainer,
   ISceneLoaderAsyncResult,
   KeyboardEventTypes,
-  LockConstraint,
   Mesh,
-  MeshBuilder,
   PhysicsAggregate,
   PhysicsShapeType,
   Scene,
   SceneLoader,
   TransformNode,
-  UniversalCamera,
   Vector3,
 } from "@babylonjs/core";
 import SpaceShipMovementController from "./spaceShipMovementController";

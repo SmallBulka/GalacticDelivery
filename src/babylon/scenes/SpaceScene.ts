@@ -20,23 +20,7 @@ import {
   NoiseProceduralTexture,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, TextBlock, Control, Button, Rectangle } from "@babylonjs/gui";
-// Создаем плоскость для фона
 
-
-// // Применяем материал
-// backgroundPlane.material = bgMaterial;
-//     const skySphere = MeshBuilder.CreateSphere("skySphere", {diameter: 2000}, this.scene);
-// const skyMaterial = new StandardMaterial("skyMaterial", this.scene);
-
-// // skyMaterial.emissiveTexture = new Texture("./textures/t.jpg", this.scene);
-// skyMaterial.diffuseColor = new Color3(0, 0, 0);
-// skyMaterial.specularColor = new Color3(0, 0, 0);
-// skyMaterial.disableLighting = true;
-// skyMaterial.backFaceCulling = false;
-// skySphere.checkCollisions = false;
-
-// skySphere.infiniteDistance = true;
-// skySphere.material = skyMaterial;
 import HavokPhysics from "@babylonjs/havok";
 import { Inspector } from "@babylonjs/inspector";
 import "@babylonjs/loaders";
@@ -48,17 +32,17 @@ export class SpaceScene {
   private engine: Engine;
   private scene: Scene;
   private ship: SpaceShip;
-  private hk: HavokPlugin;
+  private hk!: HavokPlugin;
   private planets: Mesh[] = [];
   private boxes: Mesh[] = [];
   private score: number = 0;
-  private scoreText: TextBlock;
+  private scoreText!: TextBlock;
   private boxCount: number = 100;
   private collectDistance: number = 10;
-  private camera: ArcRotateCamera;
-  private deltaTime: number;
-  private atmosphereMaterial: StandardMaterial;
-  private nebulaParticles: ParticleSystem;
+  private camera!: ArcRotateCamera;
+  private deltaTime!: number;
+  private atmosphereMaterial!: StandardMaterial;
+  private nebulaParticles!: ParticleSystem;
   private advancedTexture?: AdvancedDynamicTexture;
   private helpButton?: Button;
   private isComplete: boolean = false;
@@ -79,10 +63,11 @@ export class SpaceScene {
     this.engine = new Engine(this.canvas, true);
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(0.08, 0.03, 0.15, 1);
+this.ship = new SpaceShip(this.scene);
 
     this.initPhysics().then(() => {
       this.createScene();
-      this.createNebulaEffect(); //  создание эффекта туманности
+      this.createNebulaEffect();
       this.advancedTexture = undefined;
       this.helpButton = undefined;
       this.engine.runRenderLoop(() => {
@@ -493,7 +478,7 @@ asteroidsController.initialize();
   }
 
   private generateBoxes(): void {
-    const areaSize = 1000; // Большая область для генерации
+    const areaSize = 1000; 
     
     for (let i = 0; i < this.boxCount; i++) {
       this.createBox(
@@ -512,7 +497,6 @@ asteroidsController.initialize();
     const boxMat = new StandardMaterial(`boxMat_${x}_${y}_${z}`, this.scene);
     boxMat.diffuseColor = new Color3(Math.random(), Math.random(), Math.random());
     boxMat.emissiveColor = boxMat.diffuseColor.scale(0.9);
-    // boxMat.specularColor = new Color3(0.9, 0.1, 0.1);
     box.material = boxMat;
     
     // Вращение коробки
@@ -522,18 +506,12 @@ asteroidsController.initialize();
       Math.random() * Math.PI * 2
     );
 
-    // // Физическое тело (статичное)
-    // new PhysicsAggregate(
-    //   box,
-    //   PhysicsShapeType.BOX,
-    //   { mass: 0, restitution: 0 },
-    //   this.scene
-    // );
+
 
     this.boxes.push(box);
   }
 
-// В методе createLocation или initialize инициализируйте UI один раз:
+
 private initUI(): void {
   this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
 

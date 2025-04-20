@@ -1,37 +1,29 @@
 import {
-  AssetContainer,
-  ISceneLoaderAsyncResult,
-  LockConstraint,
   Matrix,
   Mesh,
   MeshBuilder,
   PhysicsAggregate,
-  PhysicsShapeType,
   Scene,
-  SceneLoader,
   TransformNode,
   Texture,
-  UniversalCamera,
-  AbstractMesh,
   Color3,
   GlowLayer,
   StandardMaterial,
   Vector3,
-  InstancedMesh,
   PhysicsShapeMesh,
   PhysicsShapeSphere
 } from "@babylonjs/core";
-import SpaceShipMoveController from "./spaceShipMoveController";
+
 
 export default class AsteroidsController {
   private scene: Scene;
-  private parentAsteroid: Mesh;
-  private asteroidMaterial: StandardMaterial;
+  private parentAsteroid!: Mesh;
+  private asteroidMaterial!: StandardMaterial;
   private glowLayer: GlowLayer;
   private worldSize = 7000; // Размер игрового пространства
   private asteroidsCount = 8000; // Общее количество астероидов
   private physicsParentTransformNode: TransformNode;
-  private physicsShape: PhysicsShapeMesh;
+  private physicsShape!: PhysicsShapeMesh;
   constructor(scene: Scene) {
     this.scene = scene;
     this.glowLayer = new GlowLayer("glowLayer", scene);

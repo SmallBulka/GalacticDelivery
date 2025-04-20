@@ -1,11 +1,7 @@
 import {
-  KeyboardEventTypes,
-  KeyboardInfo,
   Mesh,
-  Observer,
   PhysicsAggregate,
   Scene,
-  TransformNode,
   Vector3,
 } from "@babylonjs/core";
 import KeyboardControllerEvent from "./KeyboardControllerEvent";
