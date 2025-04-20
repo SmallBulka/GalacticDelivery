@@ -121,14 +121,14 @@ export default class SpaceShipMoveController {
     }
   }
 
-  private limitVelocities(): void {
-    const body = this.spaceShipAggregate.body;
-    const velocity = body.getLinearVelocity();
+  // private limitVelocities(): void {
+  //   const body = this.spaceShipAggregate.body;
+  //   const velocity = body.getLinearVelocity();
     
-    if (velocity.length() > this.movement.maxSpeed) {
-      body.setLinearVelocity(velocity.normalize().scale(this.movement.maxSpeed));
-    }
-  }
+  //   if (velocity.length() > this.movement.maxSpeed) {
+  //     body.setLinearVelocity(velocity.normalize().scale(this.movement.maxSpeed));
+  //   }
+  // }
 
   public emergencyStop(): void {
     const body = this.spaceShipAggregate.body;

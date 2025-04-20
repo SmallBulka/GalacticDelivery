@@ -21,7 +21,7 @@ import {
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, TextBlock, Control, Button, Rectangle } from "@babylonjs/gui";
 
-import HavokPhysics from "@babylonjs/havok";
+
 import { Inspector } from "@babylonjs/inspector";
 import "@babylonjs/loaders";
 import SpaceShip from "./spaceships/spaceShip";
@@ -40,13 +40,13 @@ export class SpaceScene {
   private boxCount: number = 100;
   private collectDistance: number = 10;
   private camera!: ArcRotateCamera;
-  private deltaTime!: number;
+  private deltaTime: number = 0;
   private atmosphereMaterial!: StandardMaterial;
   private nebulaParticles!: ParticleSystem;
   private advancedTexture?: AdvancedDynamicTexture;
   private helpButton?: Button;
-  private isComplete: boolean = false;
-  havokInstance;
+  isComplete: boolean = false;
+  private havokInstance?: any;
     //  поля для системы чанков
     private loadedChunks = new Map<string, boolean>();
     private chunkSize = 3000; // Размер одного чанка
@@ -109,7 +109,7 @@ this.ship = new SpaceShip(this.scene);
     planetMaterial.specularColor = new Color3(0.1, 0.1, 0.1); // Темные блики
     planetMaterial.specularPower = 5; // Низкая отражательная способность
     planetMaterial.roughness = 0.85; // Высокая шероховатость (0-1)
-    planetMaterial.microSurface = 0.3; // Микрорельеф поверхности
+    planetMaterial.roughness  = 0.3; // Микрорельеф поверхности
     planetMaterial.emissiveColor = new Color3(0, 0, 0);
     // Загружаем случайную текстуру
     const textureTypes = ["mars.jpg", "neptune.jpg", "daymap.jpg", "surface.jpg", "jupiter.jpg"];
@@ -399,7 +399,7 @@ private createScene() {
         atmosphereMaterial.alphaMode = Engine.ALPHA_COMBINE;
         
         atmosphere.material = atmosphereMaterial;
-        sphere.position = position;
+        sphere.position = this.getRandomPosition(-1000, 1000);
         atmosphere.position = sphere.position.clone();
         
         new PhysicsAggregate(
@@ -709,12 +709,12 @@ private showMessage(text: string, duration: number = 3000): void {
     
 }
 
-  private createSphere() {
-    console.log("");
-  }
-  private createQuest() {
-    console.log("");
-  }
+  // private createSphere() {
+  //   console.log("");
+  // }
+  // private createQuest() {
+  //   console.log("");
+  // }
   private async importLocation() {
     console.log("");
   }

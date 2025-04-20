@@ -5,20 +5,20 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import KeyboardControllerEvent from "./KeyboardControllerEvent";
-enum Direction {
-  left = "1",
-  right = "2",
-  forward = "3",
-  back = "4",
-  leftroll = "5",
-  rightroll = "6",
-}
+// enum Direction {
+//   left = "1",
+//   right = "2",
+//   forward = "3",
+//   back = "4",
+//   leftroll = "5",
+//   rightroll = "6",
+// }
 export default class SpaceShipMovementController {
   private scene: Scene;
-  private inputMap: { [key: string]: boolean } = {};
+  // private inputMap: { [key: string]: boolean } = {};
   private spaceShipAggregate: PhysicsAggregate;
   private spaceShipBox: Mesh;
-  private deltaTime = 0;
+  deltaTime!: number;
   private keyboardControllerEvent: KeyboardControllerEvent;
   private speed = 200;
   private rotateSpeed = 20;

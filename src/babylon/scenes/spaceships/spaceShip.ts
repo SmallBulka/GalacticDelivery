@@ -13,11 +13,11 @@ import SpaceShipMovementController from "./spaceShipMovementController";
 
 export default class SpaceShip {
   private scene: Scene;
-  private moveController: SpaceShipMovementController;
-  private assetContainer: ISceneLoaderAsyncResult;
-  public spaceShipBox: Mesh;
-  private spaceShipNode: TransformNode;
-  public spaceShipAggregate: PhysicsAggregate;
+ moveController!: SpaceShipMovementController;
+  private assetContainer!: ISceneLoaderAsyncResult;
+  public spaceShipBox!: Mesh;
+  private spaceShipNode!: TransformNode;
+  public spaceShipAggregate!: PhysicsAggregate;
   // private spaceShipCamera: UniversalCamera
   constructor(scene: Scene) {
     this.scene = scene;
@@ -31,7 +31,6 @@ export default class SpaceShip {
     this.assetContainer.meshes[1].parent = this.spaceShipNode;
     this.assetContainer.meshes[2].parent = this.spaceShipNode;
     // this.spaceShipNode.position.y = 20;
-    console.log(this.spaceShipNode);
     this.spaceShipBox = Mesh.MergeMeshes(
       [
         this.assetContainer.meshes[1] as Mesh,
@@ -42,7 +41,7 @@ export default class SpaceShip {
       undefined,
       false,
       true
-    );
+    ) as Mesh;
     this.spaceShipAggregate = await new PhysicsAggregate(
       this.spaceShipBox,
       PhysicsShapeType.BOX,

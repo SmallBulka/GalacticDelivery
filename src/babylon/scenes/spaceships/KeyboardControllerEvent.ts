@@ -1,4 +1,4 @@
-import { KeyboardInfo,  Nullable,  Observable,  Observer,  Scene } from "@babylonjs/core";
+import { KeyboardInfo,  Nullable,   Observer,  Scene } from "@babylonjs/core";
 
 export default class KeyboardControllerEvent{
     public up = false;
