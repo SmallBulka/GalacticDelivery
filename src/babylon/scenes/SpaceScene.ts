@@ -22,7 +22,7 @@ import {
 import { AdvancedDynamicTexture, TextBlock, Control, Button, Rectangle } from "@babylonjs/gui";
 
 
-import { Inspector } from "@babylonjs/inspector";
+// import { Inspector } from "@babylonjs/inspector";
 import "@babylonjs/loaders";
 import SpaceShip from "./spaceships/spaceShip";
 import AsteroidsController from "../asteroidsController";
