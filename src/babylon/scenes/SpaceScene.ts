@@ -1,4 +1,4 @@
-// src/babylon/PhysicsScene.ts
+
 import {
   Engine,
   Scene,
@@ -93,15 +93,15 @@ this.ship = new SpaceShip(this.scene);
   }
 
   private createPlanet(x: number, y: number, z: number, size: number): Mesh {
-    // 1. Создаем планету с увеличенным количеством сегментов для лучшего отображения
+    // 1. Создает планету с увеличенным количеством сегментов для лучшего отображения
     const planet = MeshBuilder.CreateSphere(
         `planet_${x}_${y}_${z}`,
-        { diameter: size, segments: 64 }, // Увеличили segments для лучшего рельефа
+        { diameter: size, segments: 34 },
         this.scene
     );
     planet.position = new Vector3(x, y, z);
 
-    // 2. Настраиваем матовый материал планеты
+    // 2. Настраивает матовый материал планеты
     const planetMaterial = new StandardMaterial(`planetMat_${x}_${y}_${z}`, this.scene);
     
     // Основные параметры матовости
@@ -111,7 +111,7 @@ this.ship = new SpaceShip(this.scene);
     planetMaterial.roughness = 0.85; // Высокая шероховатость (0-1)
     planetMaterial.roughness  = 0.3; // Микрорельеф поверхности
     planetMaterial.emissiveColor = new Color3(0, 0, 0);
-    // Загружаем случайную текстуру
+    // Загружает случайную текстуру
     const textureTypes = ["mars.jpg", "neptune.jpg", "daymap.jpg", "surface.jpg", "jupiter.jpg"];
     const randomType = textureTypes[Math.floor(Math.random() * textureTypes.length)];
     
@@ -120,7 +120,7 @@ this.ship = new SpaceShip(this.scene);
         planetMaterial.diffuseTexture = new Texture(`./textures/${randomType}`, this.scene);
 
 
-        // Добавляем карту нормалей для рельефа
+        // Добавляет карту нормалей для рельефа
         planetMaterial.bumpTexture = new Texture("./textures/rocky_terrain_03_nor_gl_4k.jpg", this.scene);
         planetMaterial.bumpTexture.level = 1.5; // Умеренный рельеф
 
@@ -134,10 +134,10 @@ this.ship = new SpaceShip(this.scene);
 
     planet.material = planetMaterial;
 
-    // 3. Создаем атмосферу с эффектом рассеяния света
+    // 3. Создает атмосферу с эффектом рассеяния света
     this.createAtmosphere(planet, size * 1.5);
 
-    // 4. Настройка физики с увеличенным трением для матовой поверхности
+    // 4. Настраивает физику с увеличенным трением для матовой поверхности
     new PhysicsAggregate(
         planet,
         PhysicsShapeType.SPHERE,
@@ -155,14 +155,14 @@ this.ship = new SpaceShip(this.scene);
 }
 
 private createAtmosphere(planet: Mesh, size: number): void {
-    // 1. Создаем меш атмосферы
+    // 1. Создает меш атмосферы
     const atmosphere = MeshBuilder.CreateSphere(
         `atmosphere_${planet.name}`,
         { diameter: size, segments: 32 },
         this.scene
     );
     
-    // 2. Используем ЕДИНЫЙ материал для всех атмосфер
+    // 2. Использует ЕДИНЫЙ материал для всех атмосфер
     if (!this.atmosphereMaterial) {
         this.atmosphereMaterial = new StandardMaterial("atmosphereMaterial", this.scene);
         this.atmosphereMaterial.emissiveColor = new Color3(0.2, 0.5, 0.5);//берюзовый
@@ -276,13 +276,13 @@ private createScene() {
   });
 }
   private createNebulaEffect(): void {
-    // Создаем систему частиц для туманности
+    // Создает систему частиц для туманности
     this.nebulaParticles = new ParticleSystem("nebulaParticles", 2000, this.scene);
     
     // Настройка текстуры частиц
     this.nebulaParticles.particleTexture = new Texture("./textures/01.jpg", this.scene);
     
-    // Цвета частиц (исправлено на Color4 для альфа-канала)
+    // Цвета частиц
     this.nebulaParticles.color1 = new Color4(0.7, 0.8, 1.0, 0.3);
     this.nebulaParticles.color2 = new Color4(0.2, 0.5, 1.0, 0.1);
     this.nebulaParticles.colorDead = new Color4(0, 0, 0.2, 0.0);
@@ -305,14 +305,13 @@ private createScene() {
     this.nebulaParticles.minEmitBox = new Vector3(-10, -10, 40); // Сдвигаем по Z назад
     this.nebulaParticles.maxEmitBox = new Vector3(10, 10, -15);  
     
-    // Настройки прозрачности (раскомментируйте, если нужно)
-    // this.nebulaParticles.blendMode = ParticleSystem.BLENDMODE_ADD;
+
   }
 
   private getRandomPosition(min: number, max: number): Vector3 {
-    const x = Math.floor(Math.random() * (max - min + 1)) + min; // Случайное число между min и max
-    const y = Math.floor(Math.random() * (max - min + 1)) + min; // Случайное число между min и max
-    const z = Math.floor(Math.random() * (max - min + 1)) + min; // Случайное число между min и max
+    const x = Math.floor(Math.random() * (max - min + 1)) + min; 
+    const y = Math.floor(Math.random() * (max - min + 1)) + min; 
+    const z = Math.floor(Math.random() * (max - min + 1)) + min; 
     return new Vector3(x, y, z);
   }
   private createMesh() {
@@ -345,14 +344,14 @@ private createScene() {
         let validPosition = false;
         let attempts = 0;
 
-        // Пытаемся найти валидную позицию
+        //  найти валидную позицию
         while (!validPosition && attempts < maxAttempts) {
             attempts++;
             planetDiameter = minPlanetSize + Math.random() * (maxPlanetSize - minPlanetSize);
             position = this.getRandomPosition(-1000, 1000);
             validPosition = true;
 
-            // Проверяем коллизии с существующими планетами
+            // коллизии с существующими планетами
             for (const existingPlanet of this.planets) {
                 const existingDiameter = existingPlanet.getBoundingInfo().boundingSphere.radius * 2;
                 const distance = Vector3.Distance(position, existingPlanet.position);
@@ -364,7 +363,7 @@ private createScene() {
                 }
             }
 
-            // Если это первая планета, позиция всегда валидна
+            //первая планета, позиция всегда валидна
             if (this.planets.length === 0) {
                 validPosition = true;
             }
@@ -413,7 +412,7 @@ private createScene() {
         this.planets.push(sphere);
     }
 
-    Inspector.Show(this.scene, {});
+    // Inspector.Show(this.scene, {});
 }
   private async CreateShip() {
     this.ship = await new SpaceShip(this.scene);
@@ -431,7 +430,7 @@ private createScene() {
     this.initUI();
     await this.camera.setTarget(this.ship.spaceShipBox);
     this.scene.activeCamera = this.camera;
-    this.createUI(); // Добавляем создание интерфейса
+    this.createUI(); //  создание интерфейса
     this.generateBoxes(); // Генерация коробок
     this.updateChunks();
 
@@ -442,7 +441,7 @@ private createScene() {
 
     this.scene.registerBeforeRender(() => {
       this.updateChunks();
-      this.updateBoxCollection(); // Добавляем проверку сбора коробок
+      this.updateBoxCollection(); //  проверка сбора коробок
       
       if (this.ship?.spaceShipAggregate && this.nebulaParticles) {
         const velocity = this.ship.spaceShipAggregate.body.getLinearVelocity();
@@ -515,7 +514,6 @@ asteroidsController.initialize();
 private initUI(): void {
   this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-  // Создаем кнопку помощи
   this.helpButton = Button.CreateSimpleButton("helpButton", "Подсказка");
   this.helpButton.width = "150px";
   this.helpButton.height = "80px";
@@ -528,7 +526,7 @@ private initUI(): void {
   this.helpButton.paddingTop = "30px";
   this.advancedTexture.addControl(this.helpButton);
 
-  // Создаем прямоугольник-контейнер для текста (изначально скрыт)
+  //  прямоугольник-контейнер для текста (изначально скрыт)
   const infoRect = new Rectangle("infoRect");
   infoRect.width = "400px";
   infoRect.height = "300px";
@@ -603,11 +601,11 @@ private updateBoxCollection(): void {
 
           if (this.score === 3) {
             this.showMessage("Вы молодец!");
-              console.log("complete");
+              // console.log("complete");
               return;
           }
           
-          // Создаем новую коробку
+          // Создает новую коробку
           this.createNewBox();
       }
   }
@@ -634,7 +632,7 @@ private showMessage(text: string, duration: number = 3000): void {
     const y = (Math.random() - 0.5) * areaSize;
     const z = (Math.random() - 0.5) * areaSize;
     
-    // Проверяем, чтобы новая коробка не появилась слишком близко к кораблю
+    // Проверяет, чтобы новая коробка не появилась слишком близко к кораблю
     if (Vector3.Distance(new Vector3(x, y, z), this.ship.spaceShipBox.position) > 100) {
       this.createBox(x, y, z);
     } else {
@@ -644,7 +642,7 @@ private showMessage(text: string, duration: number = 3000): void {
   }
   private async createInitialPlanets() {
     
-    // Создаем начальные планеты вокруг нулевых координат
+    // Создает начальные планеты вокруг нулевых координат
     for (let i = 0; i < 8; i++) {
       const x = (Math.random() - 0.5) * 2000;
       const y = (Math.random() - 0.5) * 1000;
@@ -673,16 +671,16 @@ private showMessage(text: string, duration: number = 3000): void {
     this.scene.onBeforePhysicsObservable.add(() => {
         const spaceshipCenter = this.ship.spaceShipAggregate.body.getBoundingBox().centerWorld;
         
-        // Применяем гравитацию от всех планет
+        // Применяет гравитацию от всех планет
         this.planets.forEach(planet => {
             const distance = Vector3.Distance(spaceshipCenter, planet.position);
             const planetRadius = planet.getBoundingInfo().boundingSphere.radius;
             
-            // Уменьшенная сила притяжения (было 10, стало 2)
+            // сила притяжения
             const gravityDirection = planet.position
                 .subtract(spaceshipCenter)
                 .normalize()
-                .scale(10); // Уменьшили силу с 10 до 2
+                .scale(10);
             
             // Визуализация только для ближайшей планеты
             if (planet === this.planets[0]) {
@@ -697,10 +695,10 @@ private showMessage(text: string, duration: number = 3000): void {
                 );
             }
             
-            // Мягкое притяжение (дистанция проверки уменьшена с 300 до 200)
+            // Мягкое притяжение 
             if (distance < 200 && distance > planetRadius * 3) {
                 this.ship.spaceShipAggregate.body.applyImpulse(
-                    gravityDirection.scale(this.deltaTime), // Добавили deltaTime для плавности
+                    gravityDirection.scale(this.deltaTime), 
                     spaceshipCenter
                 );
             }
@@ -716,7 +714,7 @@ private showMessage(text: string, duration: number = 3000): void {
   //   console.log("");
   // }
   private async importLocation() {
-    console.log("");
+    // console.log("");
   }
   public resize(): void {
     this.engine.resize();

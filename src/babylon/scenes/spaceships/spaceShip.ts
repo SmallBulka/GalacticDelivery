@@ -55,36 +55,13 @@ export default class SpaceShip {
     this.spaceShipAggregate.body.setLinearDamping(0.8);
     this.spaceShipAggregate.body.setAngularDamping(0.8);
 
-    // setInterval(() => {
-    //   console.log(
-    //     "spaceShipBox",
-    //     this.spaceShipBox.getBoundingInfo().boundingBox.centerWorld
-    //   );
-    //   console.log(
-    //     "spaceShipAggregate",
-    //     this.spaceShipAggregate.body.getBoundingBox().centerWorld
-    //   );
-    // }, 1000);
-
     this.moveController = new SpaceShipMovementController(
       this.scene,
       this.spaceShipAggregate,
       this.spaceShipBox
     );
     this.restartObserver();
-    // this.initCamera()
-
-    // this.spaceShipAggregate.body.applyForce(new Vector3(0, 0, 1), new Vector3(0, 0, 0));
-    // const secAggregate = await new PhysicsAggregate(
-    //   this.spaceShipNode.getChildMeshes()[1],
-    //   PhysicsShapeType.BOX,
-    //   { mass: 1 },
-    //   this.scene
-    // );
-
-    // this.assetContainer.forEach((value, index, array) => {
-    //     new PhysicsAggregate()
-    // })
+   
   }
   private async loadSpaceShip() {
     this.assetContainer = await SceneLoader.ImportMeshAsync(
@@ -111,13 +88,5 @@ export default class SpaceShip {
     this.spaceShipBox.position = new Vector3(0, 0, 0);
     this.spaceShipBox.rotation = new Vector3(0, 0, 0);
   }
-  // initCamera() {
-  //   this.spaceShipCamera = new UniversalCamera("spaceShipCamera", this.spaceShipBox.position , this.scene);
 
-  //   this.spaceShipCamera.parent = this.spaceShipBox;
-  //   this.spaceShipCamera.position = new Vector3(0, 10, -30);
-  //   this.spaceShipCamera.setTarget(this.spaceShipBox.position);
-  //   this.scene.activeCamera=this.spaceShipCamera
-
-  // }
 }

@@ -57,7 +57,7 @@ export default class AsteroidsController {
 
   public initialize(): void {
     this.generateAsteroidField();
-    console.log(`Generated ${this.asteroidsCount} asteroids in ${this.worldSize}x${this.worldSize}x${this.worldSize} space`);
+    // console.log(`Generated ${this.asteroidsCount} asteroids in ${this.worldSize}x${this.worldSize}x${this.worldSize} space`);
   }
 
   private async generateAsteroidField(): Promise<void> {
