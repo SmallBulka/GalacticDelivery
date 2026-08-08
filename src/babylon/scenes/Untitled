@@ -1,0 +1,33 @@
+// KeyboardInputProvider.ts
+import { Scene, ActionManager, ExecuteCodeAction } from "@babylonjs/core";
+import { IInputState } from "./SpaceShipMovementController";
+
+export class KeyboardInputProvider {
+  private keys: { [key: string]: boolean } = {};
+
+  constructor(scene: Scene) {
+    scene.actionManager = scene.actionManager || new ActionManager(scene);
+
+    scene.actionManager.registerAction(
+      new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
+        this.keys[evt.sourceEvent.code] = true;
+      })
+    );
+
+    scene.actionManager.registerAction(
+      new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
+        this.keys[evt.sourceEvent.code] = false;
+      })
+    );
+  }
+
+  public getInput(): IInputState {
+    return {
+      thrust: (this.keys["KeyW"] || this.keys["ArrowUp"] ? 1 : 0) - (this.keys["KeyS"] || this.keys["ArrowDown"] ? 1 : 0),
+      strafe: (this.keys["KeyD"] ? 1 : 0) - (this.keys["KeyA"] ? 1 : 0),
+      pitch: (this.keys["Numpad8"] ? 1 : 0) - (this.keys["Numpad2"] ? 1 : 0),
+      yaw: (this.keys["ArrowRight"] ? 1 : 0) - (this.keys["ArrowLeft"] ? 1 : 0),
+      roll: (this.keys["KeyE"] ? 1 : 0) - (this.keys["KeyQ"] ? 1 : 0),
+    };
+  }
+}
