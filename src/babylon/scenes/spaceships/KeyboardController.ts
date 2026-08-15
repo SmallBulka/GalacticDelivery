@@ -5,9 +5,14 @@ import {
   Observer,
   Scene,
 } from "@babylonjs/core";
+import { IInputProvider } from "./IInputProvider";
 import { EMPTY_INPUT_STATE, IInputState } from "./IInputState";
 
-export default class KeyboardController {
+/**
+ * Клавиатурный ввод в нормализованный IInputState (−1 / 0 / 1).
+ * Параметры полёта не задаёт — их применяет MovementController.
+ */
+export default class KeyboardController implements IInputProvider {
   private keys: Record<string, boolean> = {};
   private observer: Nullable<Observer<KeyboardInfo>> = null;
 
@@ -21,7 +26,7 @@ export default class KeyboardController {
     });
   }
 
-  public getState(): IInputState {
+  public getInput(): IInputState {
     const thrustForward = this.isPressed("KeyW");
     const thrustBack = this.isPressed("KeyS");
     const yawLeft = this.isPressed("KeyA");
@@ -50,6 +55,11 @@ export default class KeyboardController {
       pitch: (pitchUp ? 1 : 0) - (pitchDown ? 1 : 0),
       roll: (rollRight ? 1 : 0) - (rollLeft ? 1 : 0),
     };
+  }
+
+  /** @deprecated используйте getInput() */
+  public getState(): IInputState {
+    return this.getInput();
   }
 
   private isPressed(...codes: string[]): boolean {

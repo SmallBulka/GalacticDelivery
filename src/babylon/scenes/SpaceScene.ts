@@ -2,7 +2,6 @@
 import {
   Engine,
   Scene,
-  ArcRotateCamera,
   Vector3,
   HemisphericLight,
   MeshBuilder,
@@ -18,51 +17,42 @@ import {
   Color4,
   ParticleSystem,
   NoiseProceduralTexture,
+  CubeTexture,
+  BackgroundMaterial,
 } from "@babylonjs/core";
-import { AdvancedDynamicTexture, TextBlock, Control, Button, Rectangle } from "@babylonjs/gui";
-// Создаем плоскость для фона
-
-
-// // Применяем материал
-// backgroundPlane.material = bgMaterial;
-//     const skySphere = MeshBuilder.CreateSphere("skySphere", {diameter: 2000}, this.scene);
-// const skyMaterial = new StandardMaterial("skyMaterial", this.scene);
-
-// // skyMaterial.emissiveTexture = new Texture("./textures/t.jpg", this.scene);
-// skyMaterial.diffuseColor = new Color3(0, 0, 0);
-// skyMaterial.specularColor = new Color3(0, 0, 0);
-// skyMaterial.disableLighting = true;
-// skyMaterial.backFaceCulling = false;
-// skySphere.checkCollisions = false;
-
-// skySphere.infiniteDistance = true;
-// skySphere.material = skyMaterial;
+import { AdvancedDynamicTexture } from "@babylonjs/gui";
+import { GameUI } from "../gui/GameUI";
+import { StatusLoadingScreen } from "../loading/StatusLoadingScreen";
+import { SceneBootstrap } from "./SceneBootstrap";
 import { Inspector } from "@babylonjs/inspector";
 import "@babylonjs/loaders";
 import SpaceShip from "./spaceships/spaceShip";
-import KeyboardController from "./spaceships/KeyboardController";
 import AsteroidsController from "../asteroidsController";
 import HK from "@babylonjs/havok";
+import { CameraManager } from "./spaceships/CameraManager";
+import { EMPTY_INPUT_STATE } from "./spaceships/IInputState";
 
 export class SpaceScene {
   private engine: Engine;
   private scene: Scene;
+  private cameraManager!: CameraManager;
   private ship!: SpaceShip;
-  private keyboardController!: KeyboardController;
   private hk!: HavokPlugin;
   private planets: Mesh[] = [];
   private boxes: Mesh[] = [];
   private score: number = 0;
-  private scoreText!: TextBlock;
+  private gameUI!: GameUI;
   private boxCount: number = 100;
   private collectDistance: number = 10;
-  private camera!: ArcRotateCamera;
-  private deltaTime!: number;
+  private deltaTime: number = 0;
   private atmosphereMaterial!: StandardMaterial;
   private nebulaParticles!: ParticleSystem;
   private advancedTexture?: AdvancedDynamicTexture;
-  private helpButton?: Button;
+  private isComplete: boolean = false;
   private havokInstance: any;
+  private loadingScreen: StatusLoadingScreen;
+  private planetDiffuseCache = new Map<string, Texture>();
+  private sharedBumpTexture?: Texture;
     //  поля для системы чанков
     private loadedChunks = new Map<string, boolean>();
     private chunkSize = 3000; // Размер одного чанка
@@ -78,19 +68,87 @@ export class SpaceScene {
   constructor(private canvas: HTMLCanvasElement) {
     this.engine = new Engine(this.canvas, true);
     this.scene = new Scene(this.engine);
-    this.scene.clearColor = new Color4(0.08, 0.03, 0.15, 1);
+    this.loadingScreen = new StatusLoadingScreen();
+    this.engine.loadingScreen = this.loadingScreen;
+    this.engine.displayLoadingUI();
+    this.loadingScreen.setStatus("Инициализация физики...");
 
-    this.initPhysics().then(() => {
+    void this.start();
+  }
+
+  private async start(): Promise<void> {
+    try {
+      this.loadingScreen.setStatus("Инициализация физики...");
+      await this.initPhysics();
+
+      this.loadingScreen.setStatus("Подготовка камеры и космоса...");
       this.createCamera();
       this.createLight();
-      this.createLocation();
-      this.engine.runRenderLoop(() => {
-        if (!this.havokInstance) {
-          return;
+      this.createSkybox();
+
+      const bootstrap = new SceneBootstrap(
+        (text) => this.loadingScreen.setStatus(text),
+        {
+          calculateDeltaTime: () => this.calculateDeltaTime(),
+          createShip: () => this.CreateShip(),
+          createInitialPlanets: () => this.createInitialPlanets(),
+          initGameUI: () => this.initGameUI(),
+          generateBoxes: () => this.generateBoxes(),
+          updateChunks: () => this.updateChunks(),
+          setupRenderHooks: () => this.setupRenderHooks(),
+          initAsteroids: (onProgress) => this.initAsteroids(onProgress),
+          applyGravity: () => this.appyGravity(),
+          maybeShowInspector: () => this.maybeShowInspector(),
         }
-        this.scene.render();
-      });
+      );
+      await bootstrap.run();
+    } catch (error) {
+      console.error("Ошибка загрузки сцены:", error);
+      this.loadingScreen.setStatus("Ошибка загрузки");
+    } finally {
+      this.engine.hideLoadingUI();
+    }
+
+    this.engine.runRenderLoop(() => {
+      if (!this.havokInstance) {
+        return;
+      }
+      this.scene.render();
     });
+  }
+
+  /** Камера до корабля: без target. Цель вешается в CreateShip. */
+  private createCamera(): void {
+    this.cameraManager = new CameraManager(this.scene, {
+      followOffset: new Vector3(0, 4.5, -20),//(0, 2.5, -10)
+      positionSmoothness: 6,
+      rotationSmoothness: 4,
+    });
+  }
+
+  private createLight(): void {
+    new HemisphericLight("light1", new Vector3(1, 1, 0), this.scene);
+    new PointLight("pointLight", new Vector3(100, 100, 100), this.scene);
+  }
+
+  private createSkybox(): void {
+    const skyboxTexture = new CubeTexture(
+      "./textures/skybox/space",
+      this.scene,
+      ["_px.png", "_py.png", "_pz.png", "_nx.png", "_ny.png", "_nz.png"]
+    );
+
+    const skybox = MeshBuilder.CreateBox("skyBox", { size: 10000 }, this.scene);
+    const skyboxMaterial = new BackgroundMaterial("skyBoxMaterial", this.scene);
+    skyboxMaterial.reflectionTexture = skyboxTexture;
+    skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
+    skyboxMaterial.backFaceCulling = false;
+    skybox.material = skyboxMaterial;
+    skybox.infiniteDistance = true;
+    skybox.ignoreCameraMaxZ = true; 
+    skybox.isPickable = false;
+
+    this.scene.environmentTexture = skyboxTexture;
   }
 
   private generateSpaceChunk(centerX: number, centerY: number, centerZ: number) {
@@ -105,66 +163,84 @@ export class SpaceScene {
     }
   }
 
-  private createPlanet(x: number, y: number, z: number, size: number): Mesh {
-    // 1. Создаем планету с увеличенным количеством сегментов для лучшего отображения
-    const planet = MeshBuilder.CreateSphere(
-        `planet_${x}_${y}_${z}`,
-        { diameter: size, segments: 64 }, // Увеличили segments для лучшего рельефа
+  private getSharedBumpTexture(): Texture {
+    if (!this.sharedBumpTexture) {
+      this.sharedBumpTexture = new Texture(
+        "./textures/rocky_terrain_03_nor_gl_4k.jpg",
         this.scene
+      );
+      this.sharedBumpTexture.level = 1.5;
+    }
+    return this.sharedBumpTexture;
+  }
+
+  private getPlanetDiffuseTexture(fileName: string): Texture {
+    let texture = this.planetDiffuseCache.get(fileName);
+    if (!texture) {
+      texture = new Texture(`./textures/${fileName}`, this.scene);
+      this.planetDiffuseCache.set(fileName, texture);
+    }
+    return texture;
+  }
+
+  private createPlanet(x: number, y: number, z: number, size: number): Mesh {
+    const planet = MeshBuilder.CreateSphere(
+      `planet_${x}_${y}_${z}`,
+      { diameter: size, segments: 32 },
+      this.scene
     );
     planet.position = new Vector3(x, y, z);
 
-    // 2. Настраиваем матовый материал планеты
-    const planetMaterial = new StandardMaterial(`planetMat_${x}_${y}_${z}`, this.scene);
-    
-    // Основные параметры матовости
+    const planetMaterial = new StandardMaterial(
+      `planetMat_${x}_${y}_${z}`,
+      this.scene
+    );
     planetMaterial.diffuseColor = new Color3(0.8, 0.8, 0.8);
-    planetMaterial.specularColor = new Color3(0.1, 0.1, 0.1); // Темные блики
-    planetMaterial.specularPower = 5; // Низкая отражательная способность
-    planetMaterial.roughness = 0.85; // Высокая шероховатость (0-1)
+    planetMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
+    planetMaterial.specularPower = 5;
+    planetMaterial.roughness = 0.85;
     planetMaterial.emissiveColor = new Color3(0, 0, 0);
-    // Загружаем случайную текстуру
-    const textureTypes = ["mars.jpg", "neptune.jpg", "daymap.jpg", "surface.jpg", "jupiter.jpg"];
-    const randomType = textureTypes[Math.floor(Math.random() * textureTypes.length)];
-    
+
+    const textureTypes = [
+      "mars.jpg",
+      "neptune.jpg",
+      "daymap.jpg",
+      "surface.jpg",
+      "jupiter.jpg",
+    ];
+    const randomType =
+      textureTypes[Math.floor(Math.random() * textureTypes.length)];
+
     try {
-        // Основная текстура
-        planetMaterial.diffuseTexture = new Texture(`./textures/${randomType}`, this.scene);
-
-
-        // Добавляем карту нормалей для рельефа
-        planetMaterial.bumpTexture = new Texture("./textures/rocky_terrain_03_nor_gl_4k.jpg", this.scene);
-        planetMaterial.bumpTexture.level = 1.5; // Умеренный рельеф
-
-
+      planetMaterial.diffuseTexture = this.getPlanetDiffuseTexture(randomType);
+      planetMaterial.bumpTexture = this.getSharedBumpTexture();
     } catch (error) {
-        console.error("Ошибка загрузки текстуры:", error);
-        // Фолбэк - процедурная текстура
-        const noiseTexture = new NoiseProceduralTexture("fallbackTex", 512, this.scene);
-        planetMaterial.diffuseTexture = noiseTexture;
+      console.error("Ошибка загрузки текстуры:", error);
+      const noiseTexture = new NoiseProceduralTexture(
+        "fallbackTex",
+        512,
+        this.scene
+      );
+      planetMaterial.diffuseTexture = noiseTexture;
     }
 
     planet.material = planetMaterial;
-
-    // 3. Создаем атмосферу с эффектом рассеяния света
     this.createAtmosphere(planet, size * 1.5);
 
-    // 4. Настройка физики с увеличенным трением для матовой поверхности
     new PhysicsAggregate(
-        planet,
-        PhysicsShapeType.SPHERE,
-        { 
-            mass: 0,
-            friction: 0.7,  // Увеличенное трение для матовой поверхности
-            restitution: 0 // Низкая упругость
-        },
-        this.scene
+      planet,
+      PhysicsShapeType.SPHERE,
+      {
+        mass: 0,
+        friction: 0.7,
+        restitution: 0,
+      },
+      this.scene
     );
 
-
-
+    this.planets.push(planet);
     return planet;
-}
+  }
 
 private createAtmosphere(planet: Mesh, size: number): void {
     // 1. Создаем меш атмосферы
@@ -265,23 +341,44 @@ private async initPhysics(): Promise<void> {
     console.error("Failed to initialize Havok Physics:", error);
   }
 }
-private createCamera(): void {
-  this.camera = new ArcRotateCamera(
-    "camera1",
-    Math.PI / 2,
-    Math.PI / 4,
-    20,
-    new Vector3(0, 0, 0),
-    this.scene
-  );
-  this.camera.setTarget(Vector3.Zero());
-  this.camera.attachControl(this.canvas, true);
-  this.camera.inputs.removeByType("ArcRotateCameraKeyboardMoveInput");
+
+private createScene() {
+  void this.start();
 }
-private createLight(): void {
-  new HemisphericLight("light1", new Vector3(1, 1, 0), this.scene);
-  new PointLight("pointLight", new Vector3(100, 100, 100), this.scene);
-}
+  private createNebulaEffect(): void {
+    // Создаем систему частиц для туманности
+    this.nebulaParticles = new ParticleSystem("nebulaParticles", 2000, this.scene);
+    
+    // Настройка текстуры частиц
+    this.nebulaParticles.particleTexture = new Texture("./textures/01.jpg", this.scene);
+    
+    // Цвета частиц (исправлено на Color4 для альфа-канала)
+    this.nebulaParticles.color1 = new Color4(0.7, 0.8, 1.0, 0.3);
+    this.nebulaParticles.color2 = new Color4(0.2, 0.5, 1.0, 0.1);
+    this.nebulaParticles.colorDead = new Color4(0, 0, 0.2, 0.0);
+    
+    // Размеры частиц
+    this.nebulaParticles.minSize = 0.8;
+    this.nebulaParticles.maxSize = 4.0;
+    
+    // Время жизни частиц
+    this.nebulaParticles.minLifeTime = 2.0;
+    this.nebulaParticles.maxLifeTime = 5.0;
+    
+    // Скорость испускания
+    this.nebulaParticles.emitRate = 50;
+    
+    // Направление и разброс
+    this.nebulaParticles.direction1 = new Vector3(-5, -1, -5);
+    this.nebulaParticles.direction2 = new Vector3(5, 1, 5);
+    // Зона испускания
+    this.nebulaParticles.minEmitBox = new Vector3(-10, -10, 40); // Сдвигаем по Z назад
+    this.nebulaParticles.maxEmitBox = new Vector3(10, 10, -15);  
+    
+    // Настройки прозрачности (раскомментируйте, если нужно)
+    // this.nebulaParticles.blendMode = ParticleSystem.BLENDMODE_ADD;
+  }
+
   private getRandomPosition(min: number, max: number): Vector3 {
     const x = Math.floor(Math.random() * (max - min + 1)) + min; // Случайное число между min и max
     const y = Math.floor(Math.random() * (max - min + 1)) + min; // Случайное число между min и max
@@ -314,7 +411,7 @@ private createLight(): void {
 
     for (let i = 0; i < numPlanets; i++) {
         let planetDiameter: number;
-        let position: Vector3 = Vector3.Zero();
+        let position: Vector3;
         let validPosition = false;
         let attempts = 0;
 
@@ -385,70 +482,70 @@ private createLight(): void {
         sphere.material = material;
         this.planets.push(sphere);
     }
-
-    Inspector.Show(this.scene, {});
 }
   private async CreateShip() {
-    this.keyboardController = new KeyboardController(this.scene);
-    this.ship = new SpaceShip(this.scene, this.keyboardController);
+    this.ship = new SpaceShip(this.scene);
     await this.ship.createSpaceShip();
+    this.cameraManager.attachTarget(this.ship.spaceShipBox);
   }
-  private async createLocation() {
-    this.createCamera();
-    this.createLight();
-    this.calculateDeltaTime();
-    await this.initPhysics();
-    await this.CreateShip();
-    await this.createInitialPlanets();
-    await this.createMesh();
-    await this.importLocation();
-    this.initUI();
-    await this.camera.setTarget(this.ship.spaceShipBox);
-    this.scene.activeCamera = this.camera;
-    this.createUI(); // Добавляем создание интерфейса
-    this.generateBoxes(); // Генерация коробок
-    this.updateChunks();
 
+  private initGameUI(): void {
+    this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
+    this.gameUI = new GameUI(
+      this.advancedTexture,
+      (partial) => this.ship.updateFlightSettings(partial),
+      () => this.ship.getFlightSettings()
+    );
+    this.gameUI.initialize();
+  }
+
+  private setupRenderHooks(): void {
     if (this.nebulaParticles && this.ship.spaceShipBox) {
       this.nebulaParticles.emitter = this.ship.spaceShipBox;
       this.nebulaParticles.start();
     }
 
     this.scene.registerBeforeRender(() => {
+      const dt =
+        this.deltaTime > 0
+          ? this.deltaTime
+          : this.scene.getEngine().getDeltaTime() / 1000;
+
+      const input = this.ship ? this.ship.getInput() : EMPTY_INPUT_STATE;
+      this.cameraManager.update(input, dt);
+
       this.updateChunks();
-      this.updateBoxCollection(); // Добавляем проверку сбора коробок
-      
+      this.updateBoxCollection();
+
       if (this.ship?.spaceShipAggregate && this.nebulaParticles) {
         const velocity = this.ship.spaceShipAggregate.body.getLinearVelocity();
         const speed = velocity.length();
         this.nebulaParticles.emitRate = Math.min(200, speed * 2);
-        
+
         if (speed > 0.1) {
           const direction = velocity.normalize().scale(-1);
           this.nebulaParticles.direction1 = direction.scale(5);
           this.nebulaParticles.direction2 = direction.scale(5);
         }
       }
-});
-
-const asteroidsController = new AsteroidsController(this.scene);
-asteroidsController.initialize();
-
-    this.appyGravity();  
+    });
   }
-  private createUI(): void {
-    const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
-    
-    this.scoreText = new TextBlock();
-    this.scoreText.text = "Собрано: 0 / 30";
-    this.scoreText.color = "white";
-    this.scoreText.fontSize = 24;
-    this.scoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.scoreText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.scoreText.paddingLeft = "20px";
-    this.scoreText.paddingTop = "20px";
-    
-    advancedTexture.addControl(this.scoreText);
+
+  private async initAsteroids(
+    onProgress: (done: number, total: number) => void
+  ): Promise<void> {
+    const asteroidsController = new AsteroidsController(this.scene);
+    await asteroidsController.initialize(onProgress);
+  }
+
+  private maybeShowInspector(): void {
+    const params = new URLSearchParams(window.location.search);
+    const debugFlag =
+      params.get("debug") === "1" ||
+      localStorage.getItem("debugInspector") === "1";
+    if (debugFlag) {
+      Inspector.Show(this.scene, {});
+    }
   }
 
   private generateBoxes(): void {
@@ -492,73 +589,6 @@ asteroidsController.initialize();
     this.boxes.push(box);
   }
 
-// В методе createLocation или initialize инициализируйте UI один раз:
- private initUI(): void {
-  this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
-
-  // Создаем кнопку помощи
-  this.helpButton = Button.CreateSimpleButton("helpButton", "Подсказка");
-  this.helpButton.width = "150px";
-  this.helpButton.height = "80px";
-  this.helpButton.color = "white";
-  this.helpButton.background = "#0066ff";
-  this.helpButton.cornerRadius = 5;
-  this.helpButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-  this.helpButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-  this.helpButton.paddingRight = "30px";
-  this.helpButton.paddingTop = "30px";
-  this.advancedTexture.addControl(this.helpButton);
-
-  // Создаем прямоугольник-контейнер для текста (изначально скрыт)
-  const infoRect = new Rectangle("infoRect");
-  infoRect.width = "400px";
-  infoRect.height = "300px";
-  infoRect.cornerRadius = 10;
-  infoRect.color = "white";
-  infoRect.thickness = 2;
-  infoRect.background = "rgba(0, 0, 0, 0.7)";
-  infoRect.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  infoRect.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  infoRect.isVisible = false;
-  this.advancedTexture.addControl(infoRect);
-
-  // Текст внутри прямоугольника
-  const infoText = new TextBlock("infoText");
-  infoText.text = "Управление кораблем:\n\n" +
-                 "W - Вперед\n" +
-                 "S - Назад\n" +
-                 "A - Влево\n" +
-                 "D - Вправо\n" +
-                 "Стрелочки - Вращение"
-  infoText.color = "white";
-  infoText.fontSize = 20;
-  infoText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  infoText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  infoText.paddingTop = "20px";
-  infoRect.addControl(infoText);
-
-  // Кнопка закрытия
-  const closeButton = Button.CreateSimpleButton("closeButton", "X");
-  closeButton.width = "30px";
-  closeButton.height = "30px";
-  closeButton.color = "white";
-  closeButton.background = "red";
-  closeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-  closeButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-  closeButton.paddingRight = "5px";
-  closeButton.paddingTop = "5px";
-  closeButton.onPointerClickObservable.add(() => {
-      infoRect.isVisible = false;
-  });
-  infoRect.addControl(closeButton);
-
-  // Обработчик клика по кнопке помощи
-  this.helpButton.onPointerClickObservable.add(() => {
-      infoRect.isVisible = true;
-  });
-}
-
-
 private updateBoxCollection(): void {
   if (!this.ship?.spaceShipBox || this.boxes.length === 0) return;
   
@@ -577,13 +607,10 @@ private updateBoxCollection(): void {
           this.score++;
           
 
-          if (this.scoreText) {
-              this.scoreText.text = `Собрано: ${this.score} / 3`;
-          }
-          
+          this.gameUI.updateScore(`Собрано: ${this.score} / 3`);
 
           if (this.score === 3) {
-            this.showMessage("Вы молодец!");
+            this.gameUI.showMessage("Вы молодец!");
               console.log("complete");
               return;
           }
@@ -593,22 +620,6 @@ private updateBoxCollection(): void {
       }
   }
 }
-private showMessage(text: string, duration: number = 3000): void {
-  this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
-  const message = new TextBlock();
-  message.text = text;
-  message.color = "white";
-  message.fontSize = 48;
-  message.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  message.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  
-  this.advancedTexture.addControl(message);
-  setTimeout(() => {
-    this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
-      this.advancedTexture.removeControl(message);
-  }, duration);
-}
-
   private createNewBox(): void {
     const areaSize = 2000;
     const x = (Math.random() - 0.5) * areaSize;
@@ -690,6 +701,12 @@ private showMessage(text: string, duration: number = 3000): void {
     
 }
 
+  private createSphere() {
+    console.log("");
+  }
+  private createQuest() {
+    console.log("");
+  }
   private async importLocation() {
     console.log("");
   }

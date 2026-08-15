@@ -11,22 +11,32 @@ import {
 } from "@babylonjs/core";
 import KeyboardController from "./KeyboardController";
 import SpaceShipMovementController from "./spaceShipMovementController";
+import {
+  FlightSettingsConfig,
+  mergeFlightSettings,
+} from "./FlightSettingsConfig";
+import { GamepadInputProvider } from "./GamepadInputProvider";
+import { CompositeInputProvider } from "./CompositeInputProvider";
+import { IInputProvider } from "./IInputProvider";
+import { IInputState } from "./IInputState";
 
 export default class SpaceShip {
   private scene: Scene;
-  // @ts-ignore - moveController is used for ship movement control via observers
   private moveController!: SpaceShipMovementController;
   private assetContainer!: ISceneLoaderAsyncResult;
   public spaceShipBox!: Mesh;
   private spaceShipNode!: TransformNode;
   public spaceShipAggregate!: PhysicsAggregate;
-  // private spaceShipCamera: UniversalCamera
-  constructor(
-    scene: Scene,
-    private keyboardController: KeyboardController
-  ) {
+  private flightSettings: FlightSettingsConfig;
+  private inputProvider!: IInputProvider;
+  private keyboardController!: KeyboardController;
+  private gamepadInput!: GamepadInputProvider;
+
+  constructor(scene: Scene, flightSettings?: Partial<FlightSettingsConfig>) {
     this.scene = scene;
+    this.flightSettings = mergeFlightSettings(flightSettings);
   }
+
   public async createSpaceShip() {
     await this.loadSpaceShip();
 
@@ -35,8 +45,7 @@ export default class SpaceShip {
     this.assetContainer.meshes[2].rotate(Vector3.Left(), Math.PI / 2);
     this.assetContainer.meshes[1].parent = this.spaceShipNode;
     this.assetContainer.meshes[2].parent = this.spaceShipNode;
-    // this.spaceShipNode.position.y = 20;
-    console.log(this.spaceShipNode);
+
     const mergedMesh = Mesh.MergeMeshes(
       [
         this.assetContainer.meshes[1] as Mesh,
@@ -52,7 +61,7 @@ export default class SpaceShip {
       throw new Error("Failed to merge spaceship meshes");
     }
     this.spaceShipBox = mergedMesh;
-    this.spaceShipAggregate = await new PhysicsAggregate(
+    this.spaceShipAggregate = new PhysicsAggregate(
       this.spaceShipBox,
       PhysicsShapeType.BOX,
       { mass: 10 },
@@ -62,41 +71,54 @@ export default class SpaceShip {
     this.spaceShipBox.setPivotPoint(
       this.spaceShipAggregate.body.getBoundingBox().centerWorld
     );
-    this.spaceShipAggregate.body.setLinearDamping(0.95); //Торможение при отпускании
-    this.spaceShipAggregate.body.setAngularDamping(0.8);
+    this.spaceShipAggregate.body.setLinearDamping(
+      this.flightSettings.linearDamping
+    );
+    this.spaceShipAggregate.body.setAngularDamping(
+      this.flightSettings.angularDamping
+    );
 
-    // setInterval(() => {
-    //   console.log(
-    //     "spaceShipBox",
-    //     this.spaceShipBox.getBoundingInfo().boundingBox.centerWorld
-    //   );
-    //   console.log(
-    //     "spaceShipAggregate",
-    //     this.spaceShipAggregate.body.getBoundingBox().centerWorld
-    //   );
-    // }, 1000);
+    this.keyboardController = new KeyboardController(this.scene);
+    this.gamepadInput = new GamepadInputProvider(this.scene);
+    this.inputProvider = new CompositeInputProvider([
+      this.keyboardController,
+      this.gamepadInput,
+    ]);
 
     this.moveController = new SpaceShipMovementController(
       this.scene,
       this.spaceShipAggregate,
       this.spaceShipBox,
-      () => this.keyboardController.getState()
+      () => this.inputProvider.getInput(),
+      this.flightSettings
     );
     this.restartObserver();
-    // this.initCamera()
-
-    // this.spaceShipAggregate.body.applyForce(new Vector3(0, 0, 1), new Vector3(0, 0, 0));
-    // const secAggregate = await new PhysicsAggregate(
-    //   this.spaceShipNode.getChildMeshes()[1],
-    //   PhysicsShapeType.BOX,
-    //   { mass: 1 },
-    //   this.scene
-    // );
-
-    // this.assetContainer.forEach((value, index, array) => {
-    //     new PhysicsAggregate()
-    // })
   }
+
+  /** Актуальный объединённый ввод (клавиатура + геймпад) для камеры и UI. */
+  getInput(): IInputState {
+    return this.inputProvider.getInput();
+  }
+
+  getFlightSettings(): FlightSettingsConfig {
+    return this.moveController.getConfig();
+  }
+
+  updateFlightSettings(partial: Partial<FlightSettingsConfig>): void {
+    this.flightSettings = mergeFlightSettings({
+      ...this.flightSettings,
+      ...partial,
+    });
+    this.moveController.applyConfig(partial);
+
+    if (partial.linearDamping !== undefined) {
+      this.spaceShipAggregate.body.setLinearDamping(partial.linearDamping);
+    }
+    if (partial.angularDamping !== undefined) {
+      this.spaceShipAggregate.body.setAngularDamping(partial.angularDamping);
+    }
+  }
+
   private async loadSpaceShip() {
     this.assetContainer = await SceneLoader.ImportMeshAsync(
       "",
@@ -105,6 +127,7 @@ export default class SpaceShip {
       this.scene
     );
   }
+
   restartObserver() {
     this.scene.onKeyboardObservable.add((kbInfo) => {
       if (
@@ -115,20 +138,15 @@ export default class SpaceShip {
       }
     });
   }
+
   restartSpaceShip() {
     this.spaceShipAggregate.body.setLinearVelocity(new Vector3(0, 0, 0));
     this.spaceShipAggregate.body.setAngularVelocity(new Vector3(0, 0, 0));
     this.spaceShipAggregate.body.disablePreStep = false;
     this.spaceShipBox.position = new Vector3(0, 0, 0);
     this.spaceShipBox.rotation = new Vector3(0, 0, 0);
+    if (this.spaceShipBox.rotationQuaternion) {
+      this.spaceShipBox.rotationQuaternion.set(0, 0, 0, 1);
+    }
   }
-  // initCamera() {
-  //   this.spaceShipCamera = new UniversalCamera("spaceShipCamera", this.spaceShipBox.position , this.scene);
-
-  //   this.spaceShipCamera.parent = this.spaceShipBox;
-  //   this.spaceShipCamera.position = new Vector3(0, 10, -30);
-  //   this.spaceShipCamera.setTarget(this.spaceShipBox.position);
-  //   this.scene.activeCamera=this.spaceShipCamera
-
-  // }
 }

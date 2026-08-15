@@ -1,24 +1,25 @@
 import { Mesh, PhysicsAggregate, PhysicsBody, Scene, Vector3 } from "@babylonjs/core";
 import { IInputState } from "./IInputState";
+import {
+  FlightSettingsConfig,
+  mergeFlightSettings,
+} from "./FlightSettingsConfig";
 
-
-const MAX_SPEED = 60;
-
-/**  быстро набирается скорость до MAX_SPEED (единиц/с²) */
-const THRUST_ACCELERATION = 10;
-const ROTATION_SPEED = 0.5;
-const ANGULAR_DAMPING = 0.95;
 const MAX_DELTA = 0.033;
 
 export default class SpaceShipMovementController {
   private deltaTime = 0;
+  private config: FlightSettingsConfig;
 
   constructor(
     private scene: Scene,
     private spaceShipAggregate: PhysicsAggregate,
     private spaceShipBox: Mesh,
-    private getInput: () => IInputState
+    private getInput: () => IInputState,
+    config?: Partial<FlightSettingsConfig>
   ) {
+    this.config = mergeFlightSettings(config);
+
     this.scene.onBeforePhysicsObservable.add(() => {
       this.deltaTime = Math.min(
         this.scene.getEngine().getDeltaTime() / 1000,
@@ -26,6 +27,14 @@ export default class SpaceShipMovementController {
       );
       this.update(this.getInput());
     });
+  }
+
+  getConfig(): FlightSettingsConfig {
+    return { ...this.config };
+  }
+
+  applyConfig(partial: Partial<FlightSettingsConfig>): void {
+    this.config = mergeFlightSettings({ ...this.config, ...partial });
   }
 
   private update(input: IInputState): void {
@@ -36,20 +45,16 @@ export default class SpaceShipMovementController {
     this.clampSpeed(body);
   }
 
-  /**
-   * W/S — разгон к ±MAX_SPEED.
-   * Скорость задаётся напрямую через MAX_SPEED, а THRUST_ACCELERATION — скорость разгона.
-   */
   private applyThrust(body: PhysicsBody, thrust: number): void {
     if (thrust === 0) return;
 
     const forward = this.spaceShipBox.getDirection(Vector3.Forward());
     const velocity = body.getLinearVelocity();
     const forwardSpeed = Vector3.Dot(velocity, forward);
-    const targetSpeed = thrust * MAX_SPEED;
+    const targetSpeed = thrust * this.config.maxSpeed;
 
     const speedDelta = targetSpeed - forwardSpeed;
-    const step = THRUST_ACCELERATION * this.deltaTime;
+    const step = this.config.thrustAcceleration * this.deltaTime;
     const newForwardSpeed =
       forwardSpeed + Math.sign(speedDelta) * Math.min(Math.abs(speedDelta), step);
 
@@ -57,25 +62,15 @@ export default class SpaceShipMovementController {
     body.setLinearVelocity(lateral.add(forward.scale(newForwardSpeed)));
   }
 
-  /** A/D — рысканье, стрелки — тангаж и крен */
   private applyRotation(body: PhysicsBody, input: IInputState): void {
-    const rotating = input.yaw !== 0 || input.pitch !== 0 || input.roll !== 0;
-
-    if (!rotating) {
-      body.setAngularVelocity(
-        body.getAngularVelocity().scale(ANGULAR_DAMPING)
-      );
-      return;
-    }
-
     const right = this.spaceShipBox.getDirection(Vector3.Right());
     const forward = this.spaceShipBox.getDirection(Vector3.Forward());
     const up = this.spaceShipBox.getDirection(Vector3.Up());
 
     const angularVelocity = right
-      .scale(-input.pitch * ROTATION_SPEED)
-      .add(forward.scale(-input.roll * ROTATION_SPEED))
-      .add(up.scale(input.yaw * ROTATION_SPEED));
+      .scale(-input.pitch * this.config.rotationSpeed)
+      .add(forward.scale(-input.roll * this.config.rotationSpeed))
+      .add(up.scale(input.yaw * this.config.rotationSpeed));
 
     body.setAngularVelocity(angularVelocity);
   }
@@ -84,10 +79,8 @@ export default class SpaceShipMovementController {
     const velocity = body.getLinearVelocity();
     const speed = velocity.length();
 
-    if (speed > MAX_SPEED) {
-      body.setLinearVelocity(velocity.normalize().scale(MAX_SPEED));
+    if (speed > this.config.maxSpeed) {
+      body.setLinearVelocity(velocity.normalize().scale(this.config.maxSpeed));
     }
   }
 }
-
-export { MAX_SPEED, THRUST_ACCELERATION };
