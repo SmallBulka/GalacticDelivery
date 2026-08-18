@@ -60,8 +60,9 @@ export class FlightSettingsMenu {
     this.settingsButton.cornerRadius = GuiStyles.button.cornerRadius;
     this.settingsButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.settingsButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.settingsButton.paddingRight = GuiStyles.padding.screen;
-    this.settingsButton.paddingTop = GuiStyles.padding.screen;
+    this.settingsButton.top = "16px";
+    this.settingsButton.left = "-16px";
+    this.settingsButton.isPointerBlocker = true;
     this.settingsButton.onPointerClickObservable.add(() => {
       this.open();
     });

@@ -34,7 +34,7 @@ export const GuiStyles = {
     height: "450px",
   },
   helpPanel: {
-    width: "460px",
-    height: "420px",
+    width: "520px",
+    height: "520px",
   },
 } as const;

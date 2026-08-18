@@ -12,23 +12,30 @@ import {
   Vector3,
   PhysicsShapeSphere,
 } from "@babylonjs/core";
+import { WORLD_SIZE, randomPointInWorld } from "./world/WorldBounds";
 
 const ASTEROID_BATCH_SIZE = 200;
+const ASTEROID_RADIUS = 7;
+const ASTEROID_SPAWN_INSET = ASTEROID_RADIUS + 20;
 
 export default class AsteroidsController {
   private scene: Scene;
   private parentAsteroid!: Mesh;
   private asteroidMaterial!: StandardMaterial;
   private glowLayer: GlowLayer;
-  private worldSize = 7000;
-  private asteroidsCount = 8000;
+  private worldSize: number;
+  private asteroidsCount = 6000;
   private physicsParentTransformNode: TransformNode;
   private physicsShape!: PhysicsShapeSphere;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, worldSize = WORLD_SIZE) {
     this.scene = scene;
-    this.glowLayer = new GlowLayer("glowLayer", scene);
-    this.glowLayer.intensity = 0.9;
+    this.worldSize = worldSize;
+    this.glowLayer = new GlowLayer("glowLayer", scene, {
+      renderingGroupId: 0,
+      blurKernelSize: 16,
+    });
+    this.glowLayer.intensity = 0.6;
     this.createAsteroidMaterial();
     this.createParentAsteroid();
     this.physicsParentTransformNode = new TransformNode(
@@ -40,13 +47,13 @@ export default class AsteroidsController {
   private createParentAsteroid(): void {
     this.parentAsteroid = MeshBuilder.CreateSphere(
       "parentAsteroid",
-      { diameter: 7, segments: 4, updatable: false },
+      { diameter: ASTEROID_RADIUS * 2, segments: 4, updatable: false },
       this.scene
     );
     this.parentAsteroid.material = this.asteroidMaterial;
     this.physicsShape = new PhysicsShapeSphere(
       new Vector3(0, 0, 0),
-      7,
+      ASTEROID_RADIUS,
       this.scene
     );
   }
@@ -57,6 +64,10 @@ export default class AsteroidsController {
     this.asteroidMaterial.diffuseTexture = noiseTexture;
     this.asteroidMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
     this.asteroidMaterial.emissiveColor = new Color3(0.3, 0.3, 0.3);
+  }
+
+  public excludeFromGlow(mesh: Mesh): void {
+    this.glowLayer.addExcludedMesh(mesh);
   }
 
   public async initialize(
@@ -71,14 +82,8 @@ export default class AsteroidsController {
   private async generateAsteroidField(
     onProgress?: (done: number, total: number) => void
   ): Promise<void> {
-    const halfSize = this.worldSize / 2;
-
     for (let i = 0; i < this.asteroidsCount; i++) {
-      const position = new Vector3(
-        -halfSize + Math.random() * this.worldSize,
-        -halfSize + Math.random() * this.worldSize,
-        -halfSize + Math.random() * this.worldSize
-      );
+      const position = randomPointInWorld(ASTEROID_SPAWN_INSET);
 
       this.createAsteroid(position);
 

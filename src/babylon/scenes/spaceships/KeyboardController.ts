@@ -57,7 +57,7 @@ export default class KeyboardController implements IInputProvider {
     };
   }
 
-  /** @deprecated используйте getInput() */
+ // используйте getInput()
   public getState(): IInputState {
     return this.getInput();
   }

@@ -2,9 +2,11 @@ export type StatusCallback = (text: string) => void;
 
 export interface SceneBootstrapContext {
   calculateDeltaTime: () => void;
+  createWorldBounds: () => void;
   createShip: () => Promise<void>;
   createInitialPlanets: () => Promise<void>;
   initGameUI: () => void;
+  initQuests: () => void;
   generateBoxes: () => void;
   updateChunks: () => void;
   setupRenderHooks: () => void;
@@ -27,6 +29,9 @@ export class SceneBootstrap {
   async run(): Promise<void> {
     this.ctx.calculateDeltaTime();
 
+    this.setStatus("Границы мира...");
+    this.ctx.createWorldBounds();
+
     this.setStatus("Загрузка корабля...");
     await this.ctx.createShip();
 
@@ -35,6 +40,9 @@ export class SceneBootstrap {
 
     this.setStatus("Интерфейс...");
     this.ctx.initGameUI();
+
+    this.setStatus("Квесты...");
+    this.ctx.initQuests();
 
     this.setStatus("Размещение грузов...");
     this.ctx.generateBoxes();
