@@ -100,6 +100,14 @@ export default class SpaceShip {
     return this.inputProvider.getInput();
   }
 
+  getGamepadStickDisplay() {
+    return this.gamepadInput.getStickDisplay();
+  }
+
+  getSpeed(): number {
+    return this.spaceShipAggregate.body.getLinearVelocity().length();
+  }
+
   getFlightSettings(): FlightSettingsConfig {
     return this.moveController.getConfig();
   }

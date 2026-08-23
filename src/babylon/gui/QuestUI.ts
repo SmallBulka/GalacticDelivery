@@ -1,13 +1,17 @@
 import {
   AdvancedDynamicTexture,
-  Button,
   Control,
   Ellipse,
   Rectangle,
-  StackPanel,
   TextBlock,
 } from "@babylonjs/gui";
 import { GuiStyles } from "./GuiStyles";
+import {
+  createModalActionButton,
+  createModalBodyText,
+  createModalShell,
+  MODAL_Z_INDEX,
+} from "./GuiHelpers";
 import type { QuestCompletionRecord } from "../quests/QuestStats";
 
 export interface QuestDialogContent {
@@ -29,79 +33,42 @@ export class QuestDialogUI {
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
 
   initialize(): void {
-    this.overlay = new Rectangle("questDialogOverlay");
-    this.overlay.width = "100%";
-    this.overlay.height = "100%";
-    this.overlay.thickness = 0;
-    this.overlay.background = "rgba(0, 0, 0, 0.55)";
-    this.overlay.isVisible = false;
-    this.overlay.isPointerBlocker = true;
-    this.advancedTexture.addControl(this.overlay);
+    const shell = createModalShell(
+      this.advancedTexture,
+      "questDialog",
+      520,
+      360,
+      { zIndex: MODAL_Z_INDEX, showClose: false }
+    );
+    this.overlay = shell.overlay;
+    this.titleText = shell.title;
 
-    const panel = new Rectangle("questDialogPanel");
-    panel.width = "520px";
-    panel.height = "340px";
-    panel.cornerRadius = 12;
-    panel.color = GuiStyles.colors.accent;
-    panel.thickness = 2;
-    panel.background = GuiStyles.colors.cardBg;
-    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.overlay.addControl(panel);
+    this.bodyText = createModalBodyText("questDialogBody", 180);
+    shell.body.addControl(this.bodyText);
 
-    this.titleText = new TextBlock("questDialogTitle");
-    this.titleText.height = "48px";
-    this.titleText.color = GuiStyles.colors.text;
-    this.titleText.fontSize = GuiStyles.fontSize.title;
-    this.titleText.fontWeight = "bold";
-    this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.titleText.paddingTop = "20px";
-    panel.addControl(this.titleText);
-
-    this.bodyText = new TextBlock("questDialogBody");
-    this.bodyText.width = "460px";
-    this.bodyText.height = "170px";
-    this.bodyText.color = GuiStyles.colors.text;
-    this.bodyText.fontSize = GuiStyles.fontSize.label;
-    this.bodyText.textWrapping = true;
-    this.bodyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.bodyText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.bodyText.top = "12px";
-    this.bodyText.isHitTestVisible = false;
-    panel.addControl(this.bodyText);
-
-    const buttons = new StackPanel("questDialogButtons");
-    buttons.isVertical = false;
-    buttons.height = "52px";
-    buttons.spacing = 16;
-    buttons.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    buttons.paddingBottom = "18px";
-    panel.addControl(buttons);
-
-    const declineBtn = Button.CreateSimpleButton("questDeclineBtn", "Позже");
-    declineBtn.width = "120px";
-    declineBtn.height = "44px";
-    declineBtn.color = GuiStyles.colors.text;
-    declineBtn.background = GuiStyles.colors.sliderBg;
-    declineBtn.cornerRadius = 6;
+    const declineBtn = createModalActionButton(
+      "questDeclineBtn",
+      "Позже",
+      "secondary",
+      130
+    );
     declineBtn.onPointerClickObservable.add(() => {
       this.hide();
       this.onDecline?.();
     });
-    buttons.addControl(declineBtn);
+    shell.footer.addControl(declineBtn);
 
-    const acceptBtn = Button.CreateSimpleButton("questAcceptBtn", "Принять");
-    acceptBtn.width = "160px";
-    acceptBtn.height = "44px";
-    acceptBtn.color = GuiStyles.colors.text;
-    acceptBtn.background = GuiStyles.colors.accent;
-    acceptBtn.cornerRadius = 6;
+    const acceptBtn = createModalActionButton(
+      "questAcceptBtn",
+      "Принять",
+      "primary",
+      160
+    );
     acceptBtn.onPointerClickObservable.add(() => {
       this.hide();
       this.onAccept?.();
     });
-    buttons.addControl(acceptBtn);
+    shell.footer.addControl(acceptBtn);
   }
 
   show(
@@ -174,7 +141,7 @@ export class ScanProgressUI {
 
     this.checkmark = new TextBlock("scanProgressCheck");
     this.checkmark.text = "✓";
-    this.checkmark.color = "#5dffb0";
+    this.checkmark.color = GuiStyles.colors.success;
     this.checkmark.fontSize = 42;
     this.checkmark.fontWeight = "bold";
     this.checkmark.isVisible = false;
@@ -212,7 +179,7 @@ export class ScanProgressUI {
   showComplete(): void {
     this.completed = true;
     this.progressArc.isVisible = false;
-    this.track.color = "#5dffb0";
+    this.track.color = GuiStyles.colors.success;
     this.checkmark.isVisible = true;
     this.label.text = "Готово";
   }
@@ -239,9 +206,10 @@ export class QuestHudUI {
     this.container = new Rectangle("questHud");
     this.container.width = "360px";
     this.container.height = "40px";
-    this.container.thickness = 0;
-    this.container.background = "rgba(0,0,0,0.6)";
-    this.container.cornerRadius = 8;
+    this.container.thickness = 1;
+    this.container.color = GuiStyles.colors.border;
+    this.container.background = GuiStyles.colors.panelBg;
+    this.container.cornerRadius = GuiStyles.radius.md;
     this.container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.container.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.container.top = "-150px";
@@ -283,94 +251,61 @@ export class PackageChoiceDialogUI {
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
 
   initialize(): void {
-    this.overlay = new Rectangle("packageChoiceOverlay");
-    this.overlay.width = "100%";
-    this.overlay.height = "100%";
-    this.overlay.thickness = 0;
-    this.overlay.background = "rgba(0,0,0,0.55)";
-    this.overlay.isVisible = false;
-    this.overlay.isPointerBlocker = true;
-    this.advancedTexture.addControl(this.overlay);
+    const shell = createModalShell(
+      this.advancedTexture,
+      "packageChoice",
+      520,
+      320,
+      { zIndex: MODAL_Z_INDEX }
+    );
+    this.overlay = shell.overlay;
+    shell.title.text = "Выберите посылку";
+    shell.closeButton.onPointerClickObservable.add(() => {
+      this.hide();
+      this.onCancel?.();
+    });
 
-    const panel = new Rectangle("packageChoicePanel");
-    panel.width = "500px";
-    panel.height = "300px";
-    panel.cornerRadius = 12;
-    panel.color = GuiStyles.colors.accent;
-    panel.thickness = 2;
-    panel.background = GuiStyles.colors.cardBg;
-    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.overlay.addControl(panel);
-
-    const title = new TextBlock("packageTitle");
-    title.text = "Выберите посылку";
-    title.color = GuiStyles.colors.text;
-    title.fontSize = GuiStyles.fontSize.title;
-    title.paddingTop = "24px";
-    title.height = "48px";
-    panel.addControl(title);
-
-    const body = new TextBlock("packageBody");
+    const body = createModalBodyText("packageBody", 110);
     body.text =
-      "Обычная — без таймера, летите в своём темпе.\n" +
+      "Обычная — без таймера, летите в своём темпе.\n\n" +
       "Хрупкая — доставьте за 2 мин, избегайте резких разгонов.";
-    body.color = GuiStyles.colors.text;
-    body.fontSize = GuiStyles.fontSize.label;
-    body.textWrapping = true;
-    body.width = "440px";
-    body.height = "90px";
-    body.top = "8px";
-    body.isHitTestVisible = false;
-    panel.addControl(body);
+    shell.body.addControl(body);
 
-    const buttons = new StackPanel("packageButtons");
-    buttons.isVertical = false;
-    buttons.height = "52px";
-    buttons.spacing = 16;
-    buttons.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    buttons.paddingBottom = "20px";
-    panel.addControl(buttons);
-
-    const simpleBtn = Button.CreateSimpleButton("pkgSimple", "Обычная");
-    simpleBtn.width = "150px";
-    simpleBtn.height = "44px";
-    simpleBtn.color = GuiStyles.colors.text;
-    simpleBtn.background = GuiStyles.colors.accent;
-    simpleBtn.cornerRadius = 6;
+    const simpleBtn = createModalActionButton(
+      "pkgSimple",
+      "Обычная",
+      "primary",
+      150
+    );
     simpleBtn.onPointerClickObservable.add(() => {
       this.hide();
       this.onSimple?.();
     });
-    buttons.addControl(simpleBtn);
+    shell.footer.addControl(simpleBtn);
 
-    const fragileBtn = Button.CreateSimpleButton("pkgFragile", "Хрупкая");
-    fragileBtn.width = "150px";
-    fragileBtn.height = "44px";
-    fragileBtn.color = GuiStyles.colors.text;
-    fragileBtn.background = "#e67e22";
-    fragileBtn.cornerRadius = 6;
+    const fragileBtn = createModalActionButton(
+      "pkgFragile",
+      "Хрупкая",
+      "warning",
+      150
+    );
     fragileBtn.onPointerClickObservable.add(() => {
       this.hide();
       this.onFragile?.();
     });
-    buttons.addControl(fragileBtn);
+    shell.footer.addControl(fragileBtn);
 
-    const cancelBtn = Button.CreateSimpleButton("pkgCancel", "Отмена");
-    cancelBtn.width = "90px";
-    cancelBtn.height = "32px";
-    cancelBtn.color = GuiStyles.colors.text;
-    cancelBtn.background = GuiStyles.colors.sliderBg;
-    cancelBtn.cornerRadius = 6;
-    cancelBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    cancelBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    cancelBtn.top = "10px";
-    cancelBtn.left = "-10px";
+    const cancelBtn = createModalActionButton(
+      "pkgCancel",
+      "Отмена",
+      "secondary",
+      110
+    );
     cancelBtn.onPointerClickObservable.add(() => {
       this.hide();
       this.onCancel?.();
     });
-    panel.addControl(cancelBtn);
+    shell.footer.addControl(cancelBtn);
   }
 
   show(
@@ -401,56 +336,28 @@ export class QuestCompletedListUI {
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
 
   initialize(): void {
-    this.overlay = new Rectangle("questListOverlay");
-    this.overlay.width = "100%";
-    this.overlay.height = "100%";
-    this.overlay.thickness = 0;
-    this.overlay.background = "rgba(0,0,0,0.55)";
-    this.overlay.isVisible = false;
-    this.overlay.isPointerBlocker = true;
-    this.advancedTexture.addControl(this.overlay);
+    const shell = createModalShell(
+      this.advancedTexture,
+      "questList",
+      520,
+      420,
+      { zIndex: MODAL_Z_INDEX }
+    );
+    this.overlay = shell.overlay;
+    shell.title.text = "Выполненные задания";
+    shell.closeButton.onPointerClickObservable.add(() => this.hide());
 
-    const panel = new Rectangle("questListPanel");
-    panel.width = "520px";
-    panel.height = "400px";
-    panel.cornerRadius = 12;
-    panel.color = GuiStyles.colors.accent;
-    panel.thickness = 2;
-    panel.background = GuiStyles.colors.cardBg;
-    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.overlay.addControl(panel);
+    this.listText = createModalBodyText("questListBody", 260);
+    shell.body.addControl(this.listText);
 
-    const title = new TextBlock("questListTitle");
-    title.text = "Выполненные задания";
-    title.color = GuiStyles.colors.text;
-    title.fontSize = GuiStyles.fontSize.title;
-    title.height = "50px";
-    title.paddingTop = "20px";
-    panel.addControl(title);
-
-    this.listText = new TextBlock("questListBody");
-    this.listText.width = "460px";
-    this.listText.height = "260px";
-    this.listText.color = GuiStyles.colors.text;
-    this.listText.fontSize = GuiStyles.fontSize.label;
-    this.listText.textWrapping = true;
-    this.listText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.listText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.listText.top = "20px";
-    this.listText.isHitTestVisible = false;
-    panel.addControl(this.listText);
-
-    const closeBtn = Button.CreateSimpleButton("questListClose", "Закрыть");
-    closeBtn.width = "120px";
-    closeBtn.height = "40px";
-    closeBtn.color = GuiStyles.colors.text;
-    closeBtn.background = GuiStyles.colors.accent;
-    closeBtn.cornerRadius = 6;
-    closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    closeBtn.paddingBottom = "20px";
-    closeBtn.onPointerClickObservable.add(() => this.hide());
-    panel.addControl(closeBtn);
+    // const closeBtn = createModalActionButton(
+    //   "questListClose",
+    //   "Закрыть",
+    //   "primary",
+    //   140
+    // );
+    // closeBtn.onPointerClickObservable.add(() => this.hide());
+    // shell.footer.addControl(closeBtn);
   }
 
   show(records: readonly QuestCompletionRecord[], formatTime: (s: number) => string): void {
@@ -482,57 +389,29 @@ export class GameCompletionUI {
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
 
   initialize(): void {
-    this.overlay = new Rectangle("gameCompletionOverlay");
-    this.overlay.width = "100%";
-    this.overlay.height = "100%";
-    this.overlay.thickness = 0;
-    this.overlay.background = "rgba(0, 0, 0, 0.88)";
-    this.overlay.isVisible = false;
-    this.overlay.isPointerBlocker = true;
-    this.advancedTexture.addControl(this.overlay);
+    const shell = createModalShell(
+      this.advancedTexture,
+      "gameCompletion",
+      560,
+      480,
+      { zIndex: MODAL_Z_INDEX, showClose: false }
+    );
+    this.overlay = shell.overlay;
+    shell.title.text = "Все задания выполнены!";
+    shell.title.color = GuiStyles.colors.success;
 
-    const panel = new Rectangle("gameCompletionPanel");
-    panel.width = "560px";
-    panel.height = "480px";
-    panel.cornerRadius = 14;
-    panel.color = "#5dffb0";
-    panel.thickness = 3;
-    panel.background = GuiStyles.colors.cardBg;
-    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.overlay.addControl(panel);
+    this.statsText = createModalBodyText("completionStats", 280);
+    this.statsText.fontSize = 17;
+    shell.body.addControl(this.statsText);
 
-    const title = new TextBlock("completionTitle");
-    title.text = "Все задания выполнены!";
-    title.color = "#5dffb0";
-    title.fontSize = 32;
-    title.fontWeight = "bold";
-    title.height = "56px";
-    title.paddingTop = "28px";
-    panel.addControl(title);
-
-    this.statsText = new TextBlock("completionStats");
-    this.statsText.width = "480px";
-    this.statsText.height = "280px";
-    this.statsText.color = GuiStyles.colors.text;
-    this.statsText.fontSize = 18;
-    this.statsText.textWrapping = true;
-    this.statsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.statsText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.statsText.top = "24px";
-    this.statsText.isHitTestVisible = false;
-    panel.addControl(this.statsText);
-
-    const closeBtn = Button.CreateSimpleButton("completionClose", "Отлично!");
-    closeBtn.width = "160px";
-    closeBtn.height = "46px";
-    closeBtn.color = GuiStyles.colors.text;
-    closeBtn.background = GuiStyles.colors.accent;
-    closeBtn.cornerRadius = 8;
-    closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    closeBtn.paddingBottom = "24px";
+    const closeBtn = createModalActionButton(
+      "completionClose",
+      "Отлично!",
+      "primary",
+      160
+    );
     closeBtn.onPointerClickObservable.add(() => this.hide());
-    panel.addControl(closeBtn);
+    shell.footer.addControl(closeBtn);
   }
 
   show(stats: {

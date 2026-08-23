@@ -160,12 +160,13 @@ export class SpaceScene {
       () => this.ship.spaceShipBox.getAbsolutePosition(),
       () =>
         this.ship?.spaceShipAggregate?.body.getLinearVelocity().length() ?? 0,
+      () => this.ship.spaceShipBox.getWorldMatrix(),
       (msg) => this.gameUI.showMessage(msg, 4000),
-      (text) => this.gameUI.updateQuestTracker(text)
+      (items) => this.gameUI.refreshQuestList(items)
     );
     this.questManager.initialize();
-    this.gameUI.setQuestListHandler(() =>
-      this.questManager.showCompletedList()
+    this.gameUI.setQuestSelectHandler((id) =>
+      this.questManager.selectQuest(id)
     );
   }
 
@@ -199,6 +200,10 @@ private async initPhysics(): Promise<void> {
       () => this.ship.getFlightSettings()
     );
     this.gameUI.initialize();
+    this.gameUI.bindKeyboardDisplay(
+      this.scene,
+      () => this.ship.getGamepadStickDisplay()
+    );
   }
 
   private setupRenderHooks(): void {
@@ -220,15 +225,22 @@ private async initPhysics(): Promise<void> {
       this.updateBoxCollection();
       this.questManager?.update(dt);
 
-      if (this.ship?.spaceShipAggregate && this.nebulaParticles) {
-        const velocity = this.ship.spaceShipAggregate.body.getLinearVelocity();
-        const speed = velocity.length();
-        this.nebulaParticles.emitRate = Math.min(200, speed * 2);
+      if (this.ship?.spaceShipAggregate) {
+        const speed = this.ship.getSpeed();
+        this.gameUI?.updateSpeedometer(
+          speed,
+          this.ship.getFlightSettings().maxSpeed
+        );
 
-        if (speed > 0.1) {
-          const direction = velocity.normalize().scale(-1);
-          this.nebulaParticles.direction1 = direction.scale(5);
-          this.nebulaParticles.direction2 = direction.scale(5);
+        if (this.nebulaParticles) {
+          this.nebulaParticles.emitRate = Math.min(200, speed * 2);
+
+          if (speed > 0.1) {
+            const velocity = this.ship.spaceShipAggregate.body.getLinearVelocity();
+            const direction = velocity.normalize().scale(-1);
+            this.nebulaParticles.direction1 = direction.scale(5);
+            this.nebulaParticles.direction2 = direction.scale(5);
+          }
         }
       }
     });

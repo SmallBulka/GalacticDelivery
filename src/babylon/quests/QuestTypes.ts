@@ -33,9 +33,9 @@ export const RING_RUNNER_QUEST: QuestDefinition = {
   id: "ring_runner",
   title: "Гоночный чекпоинт",
   description:
-    "Пролетите сквозь 5 светящихся колец за 30 секунд. Кольца появятся вокруг планеты — следуйте по маршруту по порядку.",
+    "Пролетите сквозь 5 светящихся колец за 60 секунд. Кольца появятся вокруг планеты — следуйте по маршруту по порядку.",
   ringCount: 5,
-  ringTimeLimitSeconds: 30,
+  ringTimeLimitSeconds: 60,
 };
 
 export const COURIER_DELIVERY_QUEST: QuestDefinition = {

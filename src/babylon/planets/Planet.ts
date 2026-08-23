@@ -96,6 +96,11 @@ export class Planet {
     return this.diameter / 2;
   }
 
+  /** Радиус сферы атмосферы (diameter × 1.5 от центра планеты). */
+  getAtmosphereRadius(): number {
+    return this.radius * 1.5;
+  }
+
   markQuestTarget(role: QuestMarkerRole, glowLayer: GlowLayer): void {
     this.questRole = role;
     this.questMarker = new PlanetQuestMarker(

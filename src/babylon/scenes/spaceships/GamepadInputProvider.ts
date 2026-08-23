@@ -16,6 +16,22 @@ const DEFAULT_STICK_DEADZONE = 0.15;
  * Читает оси геймпада в нормализованный IInputState (−1…1).
  * Скорость, ускорение и damping задаются через FlightSettingsConfig / MovementController.
  */
+export interface GamepadStickDisplay {
+  connected: boolean;
+  leftX: number;
+  leftY: number;
+  rightX: number;
+  rightY: number;
+}
+
+export const EMPTY_GAMEPAD_STICK_DISPLAY: GamepadStickDisplay = {
+  connected: false,
+  leftX: 0,
+  leftY: 0,
+  rightX: 0,
+  rightY: 0,
+};
+
 export class GamepadInputProvider implements IInputProvider {
   private gamepadManager: GamepadManager;
   private activeGamepad: Gamepad | null = null;
@@ -61,6 +77,22 @@ export class GamepadInputProvider implements IInputProvider {
     }
 
     return { thrust, yaw, pitch, roll };
+  }
+
+  /** Сырые оси стиков для HUD (без мёртвой зоны, чтобы точка двигалась плавно). */
+  getStickDisplay(): GamepadStickDisplay {
+    if (!this.activeGamepad) {
+      return EMPTY_GAMEPAD_STICK_DISPLAY;
+    }
+
+    const pad = this.activeGamepad;
+    return {
+      connected: true,
+      leftX: pad.leftStick.x,
+      leftY: pad.leftStick.y,
+      rightX: pad.rightStick.x,
+      rightY: pad.rightStick.y,
+    };
   }
 
   private applyDeadzone(value: number): number {
