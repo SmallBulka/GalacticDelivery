@@ -157,7 +157,7 @@ export function createModalShell(
   const showClose = options?.showClose !== false;
 
   const overlay = new Rectangle(`${name}Overlay`);
-  overlay.width = "90%";
+  overlay.width = "100%";
   overlay.height = "100%";
   overlay.thickness = 0;
   overlay.background = GuiStyles.colors.overlayBg;
@@ -221,7 +221,7 @@ export function createModalShell(
   body.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
   body.top = `${HEADER_H}px`;
   body.paddingLeft = "20px";
-  body.paddingTop = "40px";
+  // body.paddingTop = "40px";
   body.isHitTestVisible = false;
   panel.addControl(body);
 

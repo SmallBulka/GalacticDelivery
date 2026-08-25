@@ -12,12 +12,10 @@ import { GuiStyles } from "./GuiStyles";
 import {
   bindHudResize,
   createGlassPanel,
-  createModalActionButton,
   createModalBodyText,
   createModalShell,
   createVerticalStack,
   styleGhostButton,
-  styleValueText,
 } from "./GuiHelpers";
 import {
   GameCompletionUI,
@@ -33,7 +31,6 @@ import { SpeedometerUI } from "./SpeedometerUI";
 import { Scene } from "@babylonjs/core";
 
 export class GameUI {
-  private scoreText!: TextBlock;
   private toastPanel!: Rectangle;
   private toastText!: TextBlock;
   private helpButton!: Button;
@@ -109,8 +106,13 @@ export class GameUI {
     });
   }
 
-  updateSpeedometer(speed: number, maxSpeed: number, energyPercent = 100): void {
-    this.speedometer.update(speed, maxSpeed, energyPercent);
+  updateSpeedometer(
+    speed: number,
+    maxSpeed: number,
+    energyPercent = 100,
+    crates = 0
+  ): void {
+    this.speedometer.update(speed, maxSpeed, energyPercent, crates);
   }
 
   setQuestSelectHandler(handler: (id: import("../quests/QuestTypes").QuestId) => void): void {
@@ -140,10 +142,6 @@ export class GameUI {
     };
   }
 
-  updateScore(text: string): void {
-    this.scoreText.text = text;
-  }
-
   showMessage(text: string, duration = 3000): void {
     this.toastText.text = text;
     this.toastPanel.isVisible = true;
@@ -169,17 +167,6 @@ export class GameUI {
     leftStack.left = `${margin}px`;
     leftStack.top = `${margin}px`;
     this.advancedTexture.addControl(leftStack);
-
-    const scoreCard = createGlassPanel("scoreCard", "100%", 44);
-    leftStack.addControl(scoreCard);
-
-    this.scoreText = new TextBlock("scoreText", "Собрано: 0 / 3");
-    this.scoreText.width = "92%";
-    this.scoreText.height = "44px";
-    this.scoreText.paddingLeft = "12px";
-    this.scoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    styleValueText(this.scoreText);
-    scoreCard.addControl(this.scoreText);
 
     this.questSwitcher = new QuestSwitcherUI(this.advancedTexture);
     this.questSwitcher.initialize(leftStack);
@@ -222,7 +209,7 @@ export class GameUI {
       this.advancedTexture,
       "help",
       520,
-      540
+      350
     );
     this.helpOverlay = shell.overlay;
     shell.title.text = "Управление";
@@ -241,24 +228,22 @@ export class GameUI {
       "Геймпад:\n" +
       "Левый стик — тяга и рысканье\n" +
       "Правый стик — тангаж и крен\n\n" +
-      "Квесты:\n" +
-      "Слева — список заданий, клик переключает активное.\n" +
-      "Радар сверху — планеты активного задания.\n" +
-      "Зелёная точка и линия — куда лететь сейчас.\n" +
-      "Справа — индикатор нажатых клавиш.";
+      "Энергия:\n" +
+      "Тратится в полёте. Контейнеры рядом с кораблём\n" +
+      "пополняют заряд на 10%.";
     shell.body.height = "400px";
     shell.body.addControl(infoText);
 
-    const closeBottom = createModalActionButton(
-      "helpCloseBottom",
-      "Понятно",
-      "primary",
-      140
-    );
-    closeBottom.onPointerClickObservable.add(() => {
-      this.helpOverlay.isVisible = false;
-    });
-    shell.footer.addControl(closeBottom);
+    // const closeBottom = createModalActionButton(
+    //   "helpCloseBottom",
+    //   "Понятно",
+    //   "primary",
+    //   140
+    // );
+    // closeBottom.onPointerClickObservable.add(() => {
+    //   this.helpOverlay.isVisible = false;
+    // });
+    // shell.footer.addControl(closeBottom);
 
     this.helpButton.onPointerClickObservable.add(() => {
       this.helpOverlay.isVisible = true;

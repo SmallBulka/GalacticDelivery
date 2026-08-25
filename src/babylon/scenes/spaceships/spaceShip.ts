@@ -31,6 +31,8 @@ export default class SpaceShip {
   private inputProvider!: IInputProvider;
   private keyboardController!: KeyboardController;
   private gamepadInput!: GamepadInputProvider;
+  /** Множитель тяги от заряда энергии (0 — нет топлива). */
+  private thrustMultiplier = 1;
 
   constructor(scene: Scene, flightSettings?: Partial<FlightSettingsConfig>) {
     this.scene = scene;
@@ -89,15 +91,28 @@ export default class SpaceShip {
       this.scene,
       this.spaceShipAggregate,
       this.spaceShipBox,
-      () => this.inputProvider.getInput(),
+      () => this.getThrottledInput(),
       this.flightSettings
     );
     this.restartObserver();
   }
 
+  setThrustMultiplier(multiplier: number): void {
+    this.thrustMultiplier = Math.max(0, Math.min(1, multiplier));
+  }
+
   /** Актуальный объединённый ввод (клавиатура + геймпад) для камеры и UI. */
   getInput(): IInputState {
-    return this.inputProvider.getInput();
+    return this.getThrottledInput();
+  }
+
+  private getThrottledInput(): IInputState {
+    const input = this.inputProvider.getInput();
+    if (this.thrustMultiplier >= 1) return input;
+    return {
+      ...input,
+      thrust: input.thrust * this.thrustMultiplier,
+    };
   }
 
   getGamepadStickDisplay() {

@@ -14,6 +14,9 @@ import {
   ParticleSystem,
   CubeTexture,
   BackgroundMaterial,
+  SceneLoader,
+  PBRMaterial,
+  Material,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture } from "@babylonjs/gui";
 import { GameUI } from "../gui/GameUI";
@@ -29,6 +32,7 @@ import { PlanetManager } from "../planets/PlanetManager";
 import { QuestManager } from "../quests/QuestManager";
 import { EMPTY_INPUT_STATE } from "./spaceships/IInputState";
 import { WORLD_SIZE, WorldBounds } from "../world/WorldBounds";
+import { ENERGY_PER_CRATE, ShipEnergy } from "../ship/ShipEnergy";
 
 export class SpaceScene {
   private engine: Engine;
@@ -39,10 +43,15 @@ export class SpaceScene {
   private questManager!: QuestManager;
   private hk!: HavokPlugin;
   private boxes: Mesh[] = [];
-  private score: number = 0;
+  private shipEnergy = new ShipEnergy();
+  private pickupJarTemplate: Mesh | null = null;
+  private pickupJarId = 0;
+  private pickupJarScale = 1;
   private gameUI!: GameUI;
   private boxCount: number = 100;
-  private collectDistance: number = 10;
+  private collectDistance: number = 22;
+  /** Целевой размер банки в мире (как бывший box size ≈ 4). */
+  private readonly pickupJarTargetSize = 4;
   private deltaTime: number = 0;
   private nebulaParticles?: ParticleSystem;
   private advancedTexture?: AdvancedDynamicTexture;
@@ -226,10 +235,23 @@ private async initPhysics(): Promise<void> {
       this.questManager?.update(dt);
 
       if (this.ship?.spaceShipAggregate) {
+        const pos = this.ship.spaceShipBox.position;
+        const justEmpty = this.shipEnergy.updateFromPosition(pos.x, pos.y, pos.z);
+        this.ship.setThrustMultiplier(this.shipEnergy.getThrustMultiplier());
+
+        if (justEmpty) {
+          this.gameUI.showMessage(
+            "Энергия на нуле — соберите контейнер (+10%)",
+            4000
+          );
+        }
+
         const speed = this.ship.getSpeed();
         this.gameUI?.updateSpeedometer(
           speed,
-          this.ship.getFlightSettings().maxSpeed
+          this.ship.getFlightSettings().maxSpeed,
+          this.shipEnergy.getEnergy(),
+          this.shipEnergy.getCratesCollected()
         );
 
         if (this.nebulaParticles) {
@@ -264,9 +286,10 @@ private async initPhysics(): Promise<void> {
     }
   }
 
-  private generateBoxes(): void {
-    const areaSize = 1000; // Большая область для генерации
-    
+  private async generateBoxes(): Promise<void> {
+    await this.loadPickupJarTemplate();
+    const areaSize = 1000;
+
     for (let i = 0; i < this.boxCount; i++) {
       this.createBox(
         (Math.random() - 0.5) * areaSize,
@@ -276,65 +299,125 @@ private async initPhysics(): Promise<void> {
     }
   }
 
-  private createBox(x: number, y: number, z: number): void {
-    const box = MeshBuilder.CreateBox(`box_${x}_${y}_${z}`, { size: 4 }, this.scene);
-    box.position = new Vector3(x, y, z);
-    
-    // Материал с случайным цветом и свечением
-    const boxMat = new StandardMaterial(`boxMat_${x}_${y}_${z}`, this.scene);
-    boxMat.diffuseColor = new Color3(Math.random(), Math.random(), Math.random());
-    boxMat.emissiveColor = boxMat.diffuseColor.scale(0.9);
-    box.material = boxMat;
-    
-    // Вращение коробки
-    box.rotation = new Vector3(
-      Math.random() * Math.PI * 2,
-      Math.random() * Math.PI * 2,
-      Math.random() * Math.PI * 2
+  private async loadPickupJarTemplate(): Promise<void> {
+    if (this.pickupJarTemplate) return;
+
+    const result = await SceneLoader.ImportMeshAsync(
+      "",
+      "./model/",
+      "Pickup Jar .glb",
+      this.scene
     );
 
-    // // Физическое тело (статичное)
-    // new PhysicsAggregate(
-    //   box,
-    //   PhysicsShapeType.BOX,
-    //   { mass: 0, restitution: 0 },
-    //   this.scene
-    // );
+    const meshList = result.meshes.filter(
+      (m): m is Mesh => m instanceof Mesh && m.getTotalVertices() > 0
+    );
 
-    this.boxes.push(box);
-  }
-
-private updateBoxCollection(): void {
-  if (!this.ship?.spaceShipBox || this.boxes.length === 0) return;
-  
-  const shipPos = this.ship.spaceShipBox.position;
-  const sqrCollectDistance = this.collectDistance * this.collectDistance; 
-  
-  for (let i = this.boxes.length - 1; i >= 0; i--) {
-      const box = this.boxes[i];
-      
-      if (Vector3.DistanceSquared(shipPos, box.position) < sqrCollectDistance) {
-
-          if (box.dispose) box.dispose();
-          if (box.physicsBody) box.physicsBody.dispose();
-          
-          this.boxes.splice(i, 1);
-          this.score++;
-          
-
-          this.gameUI.updateScore(`Собрано: ${this.score} / 3`);
-
-          if (this.score === 3) {
-            this.gameUI.showMessage("Вы молодец!");
-              console.log("complete");
-              return;
-          }
-          
-          // Создаем новую коробку
-          this.createNewBox();
+    let root: Mesh;
+    if (meshList.length === 0) {
+      throw new Error("Pickup Jar .glb: нет геометрии");
+    }
+    if (meshList.length === 1) {
+      root = meshList[0];
+    } else {
+      const merged = Mesh.MergeMeshes(
+        meshList,
+        true,
+        true,
+        undefined,
+        false,
+        true
+      );
+      if (!merged) {
+        throw new Error("Pickup Jar .glb: не удалось объединить меши");
       }
+      root = merged;
+    }
+
+    // Прячем исходник — клоны идут в мир.
+    root.setEnabled(false);
+    root.isVisible = false;
+    root.isPickable = false;
+
+    const bounds = root.getBoundingInfo().boundingBox;
+    const size = bounds.extendSize.scale(2);
+    const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+    this.pickupJarScale = this.pickupJarTargetSize / maxDim;
+
+    this.applyPickupGlowMaterial(root);
+    this.pickupJarTemplate = root;
   }
-}
+
+  private applyPickupGlowMaterial(mesh: Mesh): void {
+    const glowColor = new Color3(1, 1, 0);
+
+    const paint = (mat: Material | null | undefined) => {
+      if (!mat) return;
+      if (mat instanceof PBRMaterial) {
+        mat.emissiveColor = glowColor;
+        mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.85);
+      } else if (mat instanceof StandardMaterial) {
+        mat.emissiveColor = glowColor;
+      }
+    };
+
+    paint(mesh.material);
+    if (mesh.material && "subMaterials" in mesh.material) {
+      const multi = mesh.material as { subMaterials?: (Material | null)[] };
+      multi.subMaterials?.forEach((m) => paint(m));
+    }
+  }
+
+  private createBox(x: number, y: number, z: number): void {
+    if (!this.pickupJarTemplate) {
+      console.warn("Pickup Jar template ещё не загружен");
+      return;
+    }
+
+    const id = this.pickupJarId++;
+    const jar = this.pickupJarTemplate.clone(`pickupJar_${id}`, null);
+    if (!jar) return;
+
+    jar.setEnabled(true);
+    jar.isVisible = true;
+    jar.isPickable = false;
+    jar.position = new Vector3(x, y, z);
+    jar.rotation = new Vector3(0, Math.random() * Math.PI * 2, 0);
+    jar.scaling.setAll(this.pickupJarScale);
+    jar.computeWorldMatrix(true);
+    jar.refreshBoundingInfo(true, true);
+
+    // Смещение pivot: подбор идёт по центру bounding box, не по origin меша.
+    this.planetManager.getGlowLayer().addIncludedOnlyMesh(jar);
+
+    this.boxes.push(jar);
+  }
+
+  private updateBoxCollection(): void {
+    if (!this.ship?.spaceShipBox || this.boxes.length === 0) return;
+
+    const shipPos = this.ship.spaceShipBox.getAbsolutePosition();
+    const sqrCollectDistance = this.collectDistance * this.collectDistance;
+
+    for (let i = this.boxes.length - 1; i >= 0; i--) {
+      const box = this.boxes[i];
+      box.computeWorldMatrix(true);
+      const center = box.getBoundingInfo().boundingBox.centerWorld;
+
+      if (Vector3.DistanceSquared(shipPos, center) < sqrCollectDistance) {
+        this.planetManager.getGlowLayer().removeIncludedOnlyMesh(box);
+        box.dispose();
+
+        this.boxes.splice(i, 1);
+        this.shipEnergy.collectCrate();
+        this.ship.setThrustMultiplier(this.shipEnergy.getThrustMultiplier());
+
+        this.gameUI.showMessage(`Контейнер: +${ENERGY_PER_CRATE}% энергии`, 1800);
+
+        this.createNewBox();
+      }
+    }
+  }
   private createNewBox(): void {
     const areaSize = 2000;
     const x = (Math.random() - 0.5) * areaSize;

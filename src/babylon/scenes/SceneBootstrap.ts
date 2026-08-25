@@ -7,7 +7,7 @@ export interface SceneBootstrapContext {
   createInitialPlanets: () => Promise<void>;
   initGameUI: () => void;
   initQuests: () => void;
-  generateBoxes: () => void;
+  generateBoxes: () => Promise<void>;
   updateChunks: () => void;
   setupRenderHooks: () => void;
   initAsteroids: (
@@ -44,8 +44,8 @@ export class SceneBootstrap {
     this.setStatus("Квесты...");
     this.ctx.initQuests();
 
-    this.setStatus("Размещение грузов...");
-    this.ctx.generateBoxes();
+    this.setStatus("Размещение контейнеров...");
+    await this.ctx.generateBoxes();
     this.ctx.updateChunks();
     this.ctx.setupRenderHooks();
 

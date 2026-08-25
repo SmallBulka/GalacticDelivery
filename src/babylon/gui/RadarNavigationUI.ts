@@ -25,7 +25,7 @@ export interface RadarBlipData {
  */
 export class RadarNavigationUI {
   private root!: StackPanel;
-  private radarWrapper!: Rectangle;
+  // private radarWrapper!: Rectangle;
   private face!: Rectangle;
   private infoPanel!: Rectangle;
   private bearingLine!: Rectangle;
@@ -63,23 +63,23 @@ export class RadarNavigationUI {
     this.root.isHitTestVisible = false;
     this.advancedTexture.addControl(this.root);
 
-    this.radarWrapper = new Rectangle("radarWrapper");
-    this.radarWrapper.width = `${this.radarSize + 12}px`;
-    this.radarWrapper.height = `${this.radarSize + 12}px`;
-    this.radarWrapper.thickness = 0;
-    this.radarWrapper.background = "transparent";
-    this.root.addControl(this.radarWrapper);
+    // this.radarWrapper = new Rectangle("radarWrapper");
+    // this.radarWrapper.width = `${this.radarSize + 12}px`;
+    // this.radarWrapper.height = `${this.radarSize + 12}px`;
+    // this.radarWrapper.thickness = 0;
+    // this.radarWrapper.background = "transparent";
+    // this.root.addControl(this.radarWrapper);
 
     const outerGlow = this.createCircle("radarOuterGlow", this.radarSize + 4, 2);
     outerGlow.color = GuiStyles.colors.borderBright;
     outerGlow.background = GuiStyles.colors.accentGlow;
-    this.radarWrapper.addControl(outerGlow);
+    // this.radarWrapper.addControl(outerGlow);
 
     this.face = this.createCircle("radarFace", this.radarSize, 0);
     this.face.background = GuiStyles.colors.panelBgLight;
     this.face.color = GuiStyles.colors.border;
     this.face.thickness = 2;
-    this.radarWrapper.addControl(this.face);
+    // this.radarWrapper.addControl(this.face);
 
     for (let i = 1; i <= 3; i++) {
       const ringSize = this.radarSize - i * 42;
@@ -139,7 +139,7 @@ export class RadarNavigationUI {
     this.shipMarker.outlineWidth = 2;
     this.shipMarker.outlineColor = "rgba(0,0,0,0.8)";
     this.shipMarker.isHitTestVisible = false;
-    this.radarWrapper.addControl(this.shipMarker);
+    // this.radarWrapper.addControl(this.shipMarker);
 
     this.rangeLabel = new TextBlock(
       "radarRangeLabel",

@@ -43,11 +43,12 @@ export class QuestSwitcherUI {
     const header = new TextBlock("questSwitcherHeader");
     styleSectionHeader(header, "ЗАДАНИЯ");
     header.width = "100%";
-    header.paddingLeft = "4px";
+    header.paddingLeft = "15px";
     inner.addControl(header);
 
     for (const quest of ALL_QUESTS) {
       const btn = Button.CreateSimpleButton(`questSwitch_${quest.id}`, quest.title);
+      btn.textBlock!.paddingLeft = "15px";
       btn.width = "100%";
       btn.height = `${GuiStyles.button.heightSm + 4}px`;
       btn.cornerRadius = GuiStyles.button.cornerRadius;

@@ -1,5 +1,6 @@
 import {
   AdvancedDynamicTexture,
+  Button,
   Control,
   Grid,
   Image,
@@ -14,11 +15,7 @@ import {
   Scene,
 } from "@babylonjs/core";
 import { GuiStyles } from "./GuiStyles";
-import {
-  createGlassPanel,
-  createVerticalStack,
-  styleSectionHeader,
-} from "./GuiHelpers";
+import { createGlassPanel, createVerticalStack } from "./GuiHelpers";
 import type { GamepadStickDisplay } from "../scenes/spaceships/GamepadInputProvider";
 
 const KEY_CODES = [
@@ -46,16 +43,22 @@ const KEY_LABELS: Record<TrackedKeyCode, string> = {
 };
 
 /** Центры стиков на keyboardInput.png (доли ширины/высоты изображения). */
-const LEFT_STICK_CENTER = { x: 0.335, y: 0.395 };
-const RIGHT_STICK_CENTER = { x: 0.665, y: 0.585 };
-const STICK_TRAVEL_PX = 16;
+const LEFT_STICK_CENTER = { x: 0.24, y: 0.40 };
+const RIGHT_STICK_CENTER = { x: 0.625, y: 0.525 };
+const STICK_TRAVEL_PX = 12;
 const GAMEPAD_IMAGE_H = 196;
+const PANEL_HEIGHT = 400;
+const TOGGLE_WIDTH = 28;
+const COLLAPSE_DURATION_SEC = 0.28;
 
 /**
  * HUD ввода: клавиатура + схема геймпада с точками стиков.
+ * Стрелка слева сворачивает/разворачивает панель.
  */
 export class KeyboardInputDisplayUI {
   private root!: Rectangle;
+  private toggleButton!: Button;
+  private toggleLabel!: TextBlock;
   private gamepadLayer!: Rectangle;
   private leftStickDot!: Rectangle;
   private rightStickDot!: Rectangle;
@@ -68,30 +71,48 @@ export class KeyboardInputDisplayUI {
   private blurHandler?: () => void;
   private getGamepadSticks: (() => GamepadStickDisplay) | null = null;
 
+  private expanded = true;
+  private collapseT = 0;
+  private animating = false;
+  private panelWidth = GuiStyles.hud.rightPanelWidth;
+  private openLeft = -GuiStyles.hud.margin;
+  private closedLeft = 0;
+
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
 
   initialize(): void {
-    this.root = createGlassPanel("keyboardInputDisplay", GuiStyles.hud.rightPanelWidth, 468);
+    this.panelWidth = GuiStyles.hud.rightPanelWidth;
+    this.openLeft = -GuiStyles.hud.margin;
+    this.closedLeft = this.panelWidth - TOGGLE_WIDTH;
+
+    this.root = createGlassPanel(
+      "keyboardInputDisplay",
+      this.panelWidth,
+      PANEL_HEIGHT
+    );
     this.root.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.root.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.root.left = `-${GuiStyles.hud.margin}px`;
+    this.root.left = `${this.openLeft}px`;
+    this.root.isHitTestVisible = true;
     this.root.isPointerBlocker = false;
+    this.root.clipChildren = false;
     this.advancedTexture.addControl(this.root);
 
     const stack = createVerticalStack("keyboardInputStack", GuiStyles.spacing.sm);
-    stack.width = "94%";
-    stack.paddingTop = "10px";
-    stack.paddingBottom = "10px";
+    stack.width = "100%";
+    stack.paddingTop = "32px";
+    // stack.paddingBottom = "30px";
+    // stack.paddingBottom = "20px";
+    stack.paddingLeft = "32px";
+    stack.paddingRight = "20px";
     this.root.addControl(stack);
 
-    stack.addControl(styleSectionHeader(new TextBlock("kbWasdHeader"), "WASD — ДВИЖЕНИЕ"));
     stack.addControl(this.createWasdGrid());
-
-    stack.addControl(styleSectionHeader(new TextBlock("kbArrowsHeader"), "СТРЕЛКИ — ПОВОРОТ"));
     stack.addControl(this.createArrowGrid());
-
-    stack.addControl(styleSectionHeader(new TextBlock("kbGamepadHeader"), "ГЕЙМПАД"));
     stack.addControl(this.createGamepadPanel());
+
+    this.createToggleButton();
+    this.syncToggleVisual();
   }
 
   applyScale(scale: number): void {
@@ -115,6 +136,7 @@ export class KeyboardInputDisplayUI {
     });
 
     this.renderObserver = scene.onBeforeRenderObservable.add(() => {
+      this.tickCollapseAnimation();
       this.updateGamepadSticks();
     });
 
@@ -139,6 +161,71 @@ export class KeyboardInputDisplayUI {
     }
     this.clearAll();
     this.resetStickDots();
+  }
+
+  private createToggleButton(): void {
+    this.toggleButton = Button.CreateSimpleButton("keyboardInputToggle", "");
+    this.toggleButton.width = `${TOGGLE_WIDTH}px`;
+    this.toggleButton.height = "56px";
+    this.toggleButton.thickness = 1;
+    this.toggleButton.color = GuiStyles.colors.border;
+    this.toggleButton.background = GuiStyles.colors.panelBgLight;
+    this.toggleButton.cornerRadius = GuiStyles.radius.sm;
+    this.toggleButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.toggleButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    this.toggleButton.left = "-4px";
+    this.toggleButton.isPointerBlocker = true;
+    this.toggleButton.zIndex = 5;
+
+    this.toggleLabel = new TextBlock("keyboardInputToggleLabel", "›");
+    this.toggleLabel.color = GuiStyles.colors.accentBright;
+    this.toggleLabel.fontSize = 22;
+    this.toggleLabel.fontWeight = "700";
+    this.toggleLabel.isHitTestVisible = false;
+    this.toggleButton.addControl(this.toggleLabel);
+
+    this.toggleButton.onPointerClickObservable.add(() => {
+      this.setExpanded(!this.expanded);
+    });
+
+    this.root.addControl(this.toggleButton);
+  }
+
+  private setExpanded(expanded: boolean): void {
+    if (this.expanded === expanded && !this.animating) return;
+    this.expanded = expanded;
+    this.animating = true;
+    this.syncToggleVisual();
+  }
+
+  private syncToggleVisual(): void {
+    this.toggleLabel.text = this.expanded ? "›" : "‹";
+    this.toggleButton.background = this.expanded
+      ? GuiStyles.colors.panelBgLight
+      : GuiStyles.colors.buttonActive;
+  }
+
+  private tickCollapseAnimation(): void {
+    if (!this.animating || !this.scene) return;
+
+    const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.05);
+    const target = this.expanded ? 0 : 1;
+    const step = dt / COLLAPSE_DURATION_SEC;
+
+    if (Math.abs(this.collapseT - target) <= step) {
+      this.collapseT = target;
+      this.animating = false;
+    } else {
+      this.collapseT += this.collapseT < target ? step : -step;
+    }
+
+    const eased = this.easeInOutCubic(this.collapseT);
+    const left = this.openLeft + (this.closedLeft - this.openLeft) * eased;
+    this.root.left = `${left}px`;
+  }
+
+  private easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
   private createGamepadPanel(): Rectangle {
@@ -237,7 +324,8 @@ export class KeyboardInputDisplayUI {
     axisX: number,
     axisY: number
   ): void {
-    const layerW = this.gamepadLayer.widthInPixels || GuiStyles.hud.rightPanelWidth * 0.94;
+    const layerW =
+      this.gamepadLayer.widthInPixels || GuiStyles.hud.rightPanelWidth * 0.94;
     const layerH = GAMEPAD_IMAGE_H;
 
     const centerX = layerW * centerXRatio;
@@ -252,8 +340,20 @@ export class KeyboardInputDisplayUI {
   }
 
   private resetStickDots(): void {
-    this.placeStickDot(this.leftStickDot, LEFT_STICK_CENTER.x, LEFT_STICK_CENTER.y, 0, 0);
-    this.placeStickDot(this.rightStickDot, RIGHT_STICK_CENTER.x, RIGHT_STICK_CENTER.y, 0, 0);
+    this.placeStickDot(
+      this.leftStickDot,
+      LEFT_STICK_CENTER.x,
+      LEFT_STICK_CENTER.y,
+      0,
+      0
+    );
+    this.placeStickDot(
+      this.rightStickDot,
+      RIGHT_STICK_CENTER.x,
+      RIGHT_STICK_CENTER.y,
+      0,
+      0
+    );
     this.leftStickDot.alpha = 0.45;
     this.rightStickDot.alpha = 0.45;
   }
@@ -279,7 +379,7 @@ export class KeyboardInputDisplayUI {
   private createKeyGrid(name: string): Grid {
     const grid = new Grid(`keyboardGrid_${name}`);
     grid.width = "100%";
-    grid.height = "84px";
+    grid.height = "90px";
     grid.addColumnDefinition(1, false);
     grid.addColumnDefinition(1, false);
     grid.addColumnDefinition(1, false);
