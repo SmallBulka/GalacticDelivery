@@ -103,12 +103,15 @@ export class Planet {
 
   markQuestTarget(role: QuestMarkerRole, glowLayer: GlowLayer): void {
     this.questRole = role;
+    const sharedAtmo = this.atmosphere.material as StandardMaterial;
     this.questMarker = new PlanetQuestMarker(
       this.scene,
       this.mesh,
       this.radius,
       role,
-      glowLayer
+      glowLayer,
+      this.atmosphere,
+      sharedAtmo
     );
   }
 

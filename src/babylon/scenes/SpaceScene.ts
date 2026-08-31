@@ -11,12 +11,12 @@ import {
   Mesh,
   PointLight,
   Color3,
-  ParticleSystem,
   CubeTexture,
   BackgroundMaterial,
   SceneLoader,
   PBRMaterial,
   Material,
+  Matrix,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture } from "@babylonjs/gui";
 import { GameUI } from "../gui/GameUI";
@@ -25,6 +25,7 @@ import { SceneBootstrap } from "./SceneBootstrap";
 import { Inspector } from "@babylonjs/inspector";
 import "@babylonjs/loaders";
 import SpaceShip from "./spaceships/spaceShip";
+import { ShipTrailParticles } from "./spaceships/ShipTrailParticles";
 import AsteroidsController from "../asteroidsController";
 import HK from "@babylonjs/havok";
 import { CameraManager } from "./spaceships/CameraManager";
@@ -33,6 +34,7 @@ import { QuestManager } from "../quests/QuestManager";
 import { EMPTY_INPUT_STATE } from "./spaceships/IInputState";
 import { WORLD_SIZE, WorldBounds } from "../world/WorldBounds";
 import { ENERGY_PER_CRATE, ShipEnergy } from "../ship/ShipEnergy";
+import { AudioManager } from "../audio/AudioManager";
 
 export class SpaceScene {
   private engine: Engine;
@@ -43,7 +45,15 @@ export class SpaceScene {
   private questManager!: QuestManager;
   private hk!: HavokPlugin;
   private boxes: Mesh[] = [];
+  /** Локальный центр bbox банки (для дешёвого world-центра без refreshBoundingInfo). */
+  private pickupLocalCenters = new Map<Mesh, Vector3>();
+  /** Ближайшие банки в общем scene GlowLayer (PlanetManager). */
+  private glowingPickups = new Set<Mesh>();
+  private pickupGlowFrame = 0;
+  private readonly pickupCenterScratch = new Vector3();
+  private readonly pickupInvMatrixScratch = new Matrix();
   private shipEnergy = new ShipEnergy();
+  private audioManager = new AudioManager();
   private pickupJarTemplate: Mesh | null = null;
   private pickupJarId = 0;
   private pickupJarScale = 1;
@@ -51,9 +61,10 @@ export class SpaceScene {
   private boxCount: number = 100;
   private collectDistance: number = 22;
   /** Целевой размер банки в мире (как бывший box size ≈ 4). */
-  private readonly pickupJarTargetSize = 4;
+  private readonly pickupJarTargetSize = 5;
   private deltaTime: number = 0;
-  private nebulaParticles?: ParticleSystem;
+  private shipTrail?: ShipTrailParticles;
+  private asteroidsController?: AsteroidsController;
   private advancedTexture?: AdvancedDynamicTexture;
   private havokInstance: any;
   private loadingScreen: StatusLoadingScreen;
@@ -103,6 +114,7 @@ export class SpaceScene {
       this.loadingScreen.setStatus("Ошибка загрузки");
     } finally {
       this.engine.hideLoadingUI();
+      void this.startAudioAfterLoading();
     }
 
     this.engine.runRenderLoop(() => {
@@ -111,6 +123,13 @@ export class SpaceScene {
       }
       this.scene.render();
     });
+  }
+
+  /** Музыка только после снятия loading screen. */
+  private async startAudioAfterLoading(): Promise<void> {
+    await this.audioManager.preload();
+    this.audioManager.playMusic("ambient", { loop: true });
+    this.audioManager.armAutoplayUnlock(this.canvas);
   }
 
   /** Камера до корабля: без target. Цель вешается в CreateShip. */
@@ -199,6 +218,7 @@ private async initPhysics(): Promise<void> {
     this.ship.spaceShipBox.renderingGroupId = 1;
     this.scene.setRenderingAutoClearDepthStencil(1, false, false, false);
     this.cameraManager.attachTarget(this.ship.spaceShipBox);
+    this.shipTrail = new ShipTrailParticles(this.scene, this.ship.spaceShipBox);
   }
 
   private initGameUI(): void {
@@ -206,21 +226,24 @@ private async initPhysics(): Promise<void> {
     this.gameUI = new GameUI(
       this.advancedTexture,
       (partial) => this.ship.updateFlightSettings(partial),
-      () => this.ship.getFlightSettings()
+      () => this.ship.getFlightSettings(),
+      this.audioManager
     );
     this.gameUI.initialize();
     this.gameUI.bindKeyboardDisplay(
       this.scene,
       () => this.ship.getGamepadStickDisplay()
     );
+    this.ship.setControlsLockChecker(() => this.gameUI.isAnyModalOpen());
+    this.ship.setOnRestart(() => {
+      this.shipEnergy.reset();
+      this.ship.setThrustMultiplier(1);
+      this.gameUI.resetEnergyWarning();
+      this.gameUI.updateEnergyWarning(this.shipEnergy.getEnergy());
+    });
   }
 
   private setupRenderHooks(): void {
-    if (this.nebulaParticles && this.ship.spaceShipBox) {
-      this.nebulaParticles.emitter = this.ship.spaceShipBox;
-      this.nebulaParticles.start();
-    }
-
     this.scene.registerBeforeRender(() => {
       const dt =
         this.deltaTime > 0
@@ -232,18 +255,21 @@ private async initPhysics(): Promise<void> {
 
       this.updateChunks();
       this.updateBoxCollection();
+      this.updatePickupJarVisuals(dt);
       this.questManager?.update(dt);
 
+      if (this.ship?.spaceShipBox) {
+        this.asteroidsController?.update(this.ship.spaceShipBox.position);
+      }
+
       if (this.ship?.spaceShipAggregate) {
+
         const pos = this.ship.spaceShipBox.position;
         const justEmpty = this.shipEnergy.updateFromPosition(pos.x, pos.y, pos.z);
         this.ship.setThrustMultiplier(this.shipEnergy.getThrustMultiplier());
 
         if (justEmpty) {
-          this.gameUI.showMessage(
-            "Энергия на нуле — соберите контейнер (+10%)",
-            4000
-          );
+          this.gameUI.updateEnergyWarning(0);
         }
 
         const speed = this.ship.getSpeed();
@@ -254,15 +280,9 @@ private async initPhysics(): Promise<void> {
           this.shipEnergy.getCratesCollected()
         );
 
-        if (this.nebulaParticles) {
-          this.nebulaParticles.emitRate = Math.min(200, speed * 2);
-
-          if (speed > 0.1) {
-            const velocity = this.ship.spaceShipAggregate.body.getLinearVelocity();
-            const direction = velocity.normalize().scale(-1);
-            this.nebulaParticles.direction1 = direction.scale(5);
-            this.nebulaParticles.direction2 = direction.scale(5);
-          }
+        if (this.shipTrail) {
+          const velocity = this.ship.spaceShipAggregate.body.getLinearVelocity();
+          this.shipTrail.update(speed, velocity);
         }
       }
     });
@@ -271,9 +291,8 @@ private async initPhysics(): Promise<void> {
   private async initAsteroids(
     onProgress: (done: number, total: number) => void
   ): Promise<void> {
-    const asteroidsController = new AsteroidsController(this.scene, WORLD_SIZE);
-    asteroidsController.excludeFromGlow(this.ship.spaceShipBox);
-    await asteroidsController.initialize(onProgress);
+    this.asteroidsController = new AsteroidsController(this.scene, WORLD_SIZE);
+    await this.asteroidsController.initialize(onProgress);
   }
 
   private maybeShowInspector(): void {
@@ -344,20 +363,26 @@ private async initPhysics(): Promise<void> {
     const maxDim = Math.max(size.x, size.y, size.z, 0.001);
     this.pickupJarScale = this.pickupJarTargetSize / maxDim;
 
-    this.applyPickupGlowMaterial(root);
+    this.applyPickupInnerGlow(root);
     this.pickupJarTemplate = root;
   }
 
-  private applyPickupGlowMaterial(mesh: Mesh): void {
-    const glowColor = new Color3(1, 1, 0);
-
+  /** Свечение цветом текстуры модели + лёгкий bloom у ближайших банок. */
+  private applyPickupInnerGlow(mesh: Mesh): void {
     const paint = (mat: Material | null | undefined) => {
       if (!mat) return;
       if (mat instanceof PBRMaterial) {
-        mat.emissiveColor = glowColor;
-        mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.85);
+        // Emissive = albedo → «светится изнутри» своими цветами, не белеет.
+        if (mat.albedoTexture && !mat.emissiveTexture) {
+          mat.emissiveTexture = mat.albedoTexture;
+        }
+        mat.emissiveColor = Color3.White();
+        mat.emissiveIntensity = 0.55;
       } else if (mat instanceof StandardMaterial) {
-        mat.emissiveColor = glowColor;
+        if (mat.diffuseTexture && !mat.emissiveTexture) {
+          mat.emissiveTexture = mat.diffuseTexture;
+        }
+        mat.emissiveColor = new Color3(0.55, 0.55, 0.55);
       }
     };
 
@@ -387,10 +412,76 @@ private async initPhysics(): Promise<void> {
     jar.computeWorldMatrix(true);
     jar.refreshBoundingInfo(true, true);
 
-    // Смещение pivot: подбор идёт по центру bounding box, не по origin меша.
-    this.planetManager.getGlowLayer().addIncludedOnlyMesh(jar);
+    const worldCenter = jar.getBoundingInfo().boundingBox.centerWorld;
+    jar.getWorldMatrix().invertToRef(this.pickupInvMatrixScratch);
+    const localCenter = Vector3.TransformCoordinates(
+      worldCenter,
+      this.pickupInvMatrixScratch
+    );
+    this.pickupLocalCenters.set(jar, localCenter);
 
     this.boxes.push(jar);
+  }
+
+  private getPickupWorldCenter(jar: Mesh, out: Vector3): Vector3 {
+    const local = this.pickupLocalCenters.get(jar);
+    if (!local) {
+      out.copyFrom(jar.position);
+      return out;
+    }
+    Vector3.TransformCoordinatesToRef(local, jar.getWorldMatrix(), out);
+    return out;
+  }
+
+  private updatePickupJarVisuals(dt: number): void {
+    for (const jar of this.boxes) {
+      jar.rotation.y += dt * 0.45;
+    }
+
+    // Glow / сортировку — реже, чем каждый кадр
+    this.pickupGlowFrame += 1;
+    if (this.pickupGlowFrame % 10 === 0) {
+      this.refreshNearbyPickupGlow();
+    }
+  }
+
+  /** Bloom только у ~8 ближайших банок — через общий sceneGlow. */
+  private refreshNearbyPickupGlow(): void {
+    if (!this.planetManager || !this.ship?.spaceShipBox) return;
+
+    const glow = this.planetManager.getGlowLayer();
+    const shipPos = this.ship.spaceShipBox.getAbsolutePosition();
+    const maxDistSq = 200 * 200;
+    const maxCount = 8;
+    const scratch = this.pickupCenterScratch;
+
+    const nearest: { jar: Mesh; d: number }[] = [];
+    for (const jar of this.boxes) {
+      const c = this.getPickupWorldCenter(jar, scratch);
+      const d = Vector3.DistanceSquared(shipPos, c);
+      if (d <= maxDistSq) {
+        nearest.push({ jar, d });
+      }
+    }
+
+    nearest.sort((a, b) => a.d - b.d);
+    const next = new Set(
+      nearest.slice(0, maxCount).map((x) => x.jar)
+    );
+
+    for (const jar of this.glowingPickups) {
+      if (!next.has(jar)) {
+        glow.removeIncludedOnlyMesh(jar);
+        this.glowingPickups.delete(jar);
+      }
+    }
+
+    for (const jar of next) {
+      if (!this.glowingPickups.has(jar)) {
+        glow.addIncludedOnlyMesh(jar);
+        this.glowingPickups.add(jar);
+      }
+    }
   }
 
   private updateBoxCollection(): void {
@@ -398,19 +489,25 @@ private async initPhysics(): Promise<void> {
 
     const shipPos = this.ship.spaceShipBox.getAbsolutePosition();
     const sqrCollectDistance = this.collectDistance * this.collectDistance;
+    const glow = this.planetManager?.getGlowLayer();
+    const scratch = this.pickupCenterScratch;
 
     for (let i = this.boxes.length - 1; i >= 0; i--) {
       const box = this.boxes[i];
-      box.computeWorldMatrix(true);
-      const center = box.getBoundingInfo().boundingBox.centerWorld;
+      const center = this.getPickupWorldCenter(box, scratch);
 
       if (Vector3.DistanceSquared(shipPos, center) < sqrCollectDistance) {
-        this.planetManager.getGlowLayer().removeIncludedOnlyMesh(box);
+        if (this.glowingPickups.has(box) && glow) {
+          glow.removeIncludedOnlyMesh(box);
+          this.glowingPickups.delete(box);
+        }
+        this.pickupLocalCenters.delete(box);
         box.dispose();
 
         this.boxes.splice(i, 1);
         this.shipEnergy.collectCrate();
         this.ship.setThrustMultiplier(this.shipEnergy.getThrustMultiplier());
+        this.audioManager.playSfx("pickup");
 
         this.gameUI.showMessage(`Контейнер: +${ENERGY_PER_CRATE}% энергии`, 1800);
 

@@ -10,6 +10,7 @@ import {
   createGlassPanel,
   createVerticalStack,
   styleSectionHeader,
+  bindUiClickSound,
 } from "./GuiHelpers";
 import { ALL_QUESTS, QuestId, QuestPhase } from "../quests/QuestTypes";
 
@@ -63,6 +64,7 @@ export class QuestSwitcherUI {
         if (!btn.isEnabled) return;
         this.onSelect?.(quest.id);
       });
+      bindUiClickSound(btn);
       this.buttons.set(quest.id, btn);
       inner.addControl(btn);
     }

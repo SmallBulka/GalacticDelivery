@@ -15,7 +15,7 @@ import {
   Scene,
 } from "@babylonjs/core";
 import { GuiStyles } from "./GuiStyles";
-import { createGlassPanel, createVerticalStack } from "./GuiHelpers";
+import { createGlassPanel, createVerticalStack, bindUiClickSound } from "./GuiHelpers";
 import type { GamepadStickDisplay } from "../scenes/spaceships/GamepadInputProvider";
 
 const KEY_CODES = [
@@ -187,6 +187,7 @@ export class KeyboardInputDisplayUI {
     this.toggleButton.onPointerClickObservable.add(() => {
       this.setExpanded(!this.expanded);
     });
+    bindUiClickSound(this.toggleButton);
 
     this.root.addControl(this.toggleButton);
   }

@@ -18,7 +18,7 @@ import {
 import { GamepadInputProvider } from "./GamepadInputProvider";
 import { CompositeInputProvider } from "./CompositeInputProvider";
 import { IInputProvider } from "./IInputProvider";
-import { IInputState } from "./IInputState";
+import { EMPTY_INPUT_STATE, IInputState } from "./IInputState";
 
 export default class SpaceShip {
   private scene: Scene;
@@ -33,6 +33,9 @@ export default class SpaceShip {
   private gamepadInput!: GamepadInputProvider;
   /** Множитель тяги от заряда энергии (0 — нет топлива). */
   private thrustMultiplier = 1;
+  private onRestart: (() => void) | null = null;
+  /** true — управление заблокировано (модальные окна). */
+  private controlsLockChecker: (() => boolean) | null = null;
 
   constructor(scene: Scene, flightSettings?: Partial<FlightSettingsConfig>) {
     this.scene = scene;
@@ -101,12 +104,20 @@ export default class SpaceShip {
     this.thrustMultiplier = Math.max(0, Math.min(1, multiplier));
   }
 
+  setControlsLockChecker(checker: (() => boolean) | null): void {
+    this.controlsLockChecker = checker;
+  }
+
   /** Актуальный объединённый ввод (клавиатура + геймпад) для камеры и UI. */
   getInput(): IInputState {
     return this.getThrottledInput();
   }
 
   private getThrottledInput(): IInputState {
+    if (this.controlsLockChecker?.()) {
+      return EMPTY_INPUT_STATE;
+    }
+
     const input = this.inputProvider.getInput();
     if (this.thrustMultiplier >= 1) return input;
     return {
@@ -151,11 +162,16 @@ export default class SpaceShip {
     );
   }
 
+  setOnRestart(callback: (() => void) | null): void {
+    this.onRestart = callback;
+  }
+
   restartObserver() {
     this.scene.onKeyboardObservable.add((kbInfo) => {
       if (
         kbInfo.event.code === "KeyR" &&
-        kbInfo.type === KeyboardEventTypes.KEYUP
+        kbInfo.type === KeyboardEventTypes.KEYUP &&
+        !this.controlsLockChecker?.()
       ) {
         this.restartSpaceShip();
       }
@@ -171,5 +187,6 @@ export default class SpaceShip {
     if (this.spaceShipBox.rotationQuaternion) {
       this.spaceShipBox.rotationQuaternion.set(0, 0, 0, 1);
     }
+    this.onRestart?.();
   }
 }

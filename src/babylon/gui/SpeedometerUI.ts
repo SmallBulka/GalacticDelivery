@@ -6,6 +6,7 @@ import {
   TextBlock,
 } from "@babylonjs/gui";
 import { GuiStyles } from "./GuiStyles";
+import { DEFAULT_FLIGHT_SETTINGS } from "../scenes/spaceships/FlightSettingsConfig";
 
 const SIZE = 168;
 const ARC_SWEEP = 0.72;
@@ -19,15 +20,25 @@ const GRADIENT_SEGMENTS = 10;
  * (у сегмента i rotation = tipAngle((i + 1) / N)).
  */
 const NEEDLE_T_IDLE = 1 / GRADIENT_SEGMENTS; // speedometerGrad_0
-const NEEDLE_T_MAX = 9 / GRADIENT_SEGMENTS; // граница grad_8 / grad_9
+/** Потолок на дефолтном maxSpeed — между grad_5 и grad_6. */
+const NEEDLE_T_DEFAULT_TOP = 6.5 / GRADIENT_SEGMENTS;
+/** Потолок при повышенном maxSpeed — граница grad_8 / grad_9. */
+const NEEDLE_T_BOOST_TOP = 9 / GRADIENT_SEGMENTS;
+
+/** Опорная «обычная» скорость из дефолтных настроек. */
+const DEFAULT_SPEED_REF = DEFAULT_FLIGHT_SETTINGS.maxSpeed;
 
 /**
  * Круглый спидометр скорости корабля (левый нижний угол).
+ * Шкала — статичный градиент; скорость показывает только стрелка.
+ *
+ * Маппинг:
+ * - 0…default maxSpeed → grad_0…grad_5/6
+ * - default…текущий maxSpeed (если выше) → до grad_8/9
  */
 export class SpeedometerUI {
   private root!: Rectangle;
   private face!: Ellipse;
-  private progressArc!: Ellipse;
   private needle!: Rectangle;
   private speedValue!: TextBlock;
   private unitLabel!: TextBlock;
@@ -70,12 +81,6 @@ export class SpeedometerUI {
 
     this.createGradientTrack();
 
-    this.progressArc = this.createArcEllipse("speedometerArc");
-    this.progressArc.thickness = 9;
-    this.progressArc.color = this.speedColor(0);
-    this.setProgress(this.progressArc, NEEDLE_T_IDLE);
-    this.face.addControl(this.progressArc);
-
     this.needle = new Rectangle("speedometerNeedle");
     this.needle.width = `${ARC_RADIUS}px`;
     this.needle.height = "2px";
@@ -101,38 +106,39 @@ export class SpeedometerUI {
     this.speedValue.fontSize = 36;
     this.speedValue.fontWeight = "700";
     this.speedValue.height = "42px";
-    this.speedValue.top = "-8px";
+    this.speedValue.top = "-20px";
     this.speedValue.isHitTestVisible = false;
     this.face.addControl(this.speedValue);
 
-    const divider = new Rectangle("speedometerDivider");
-    divider.width = "48px";
-    divider.height = "1px";
-    divider.thickness = 0;
-    divider.background = "rgba(232, 244, 255, 0.55)";
-    divider.top = "18px";
-    divider.isHitTestVisible = false;
-    this.face.addControl(divider);
+    // const divider = new Rectangle("speedometerDivider");
+    // divider.width = "48px";
+    // divider.height = "1px";
+    // divider.thickness = 0;
+    // divider.background = "rgba(232, 244, 255, 0.55)";
+    // divider.top = "18px";
+    // divider.isHitTestVisible = false;
+    // this.face.addControl(divider);
 
     this.unitLabel = new TextBlock("speedometerUnit", "КМ/Ч");
     this.unitLabel.color = GuiStyles.colors.accentBright;
     this.unitLabel.fontSize = GuiStyles.fontSize.caption;
     this.unitLabel.fontWeight = "600";
     this.unitLabel.height = "16px";
-    this.unitLabel.top = "28px";
+    this.unitLabel.top = "15px";
     this.unitLabel.isHitTestVisible = false;
     this.face.addControl(this.unitLabel);
 
     this.energyLabel = new TextBlock("speedometerEnergy");
     this.energyLabel.color = GuiStyles.colors.text;
     this.energyLabel.fontSize = GuiStyles.fontSize.caption;
+    this.energyLabel.fontSize = 13;
     this.energyLabel.fontWeight = "600";
     this.energyLabel.height = "20px";
-    this.energyLabel.top = "52px";
+    this.energyLabel.top = "35px";
     this.energyLabel.isHitTestVisible = false;
     this.face.addControl(this.energyLabel);
 
-    this.update(0, 100);
+    this.update(0, DEFAULT_SPEED_REF);
   }
 
   applyScale(scale: number): void {
@@ -140,20 +146,11 @@ export class SpeedometerUI {
     this.root.scaleY = scale;
   }
 
-  update(speed: number, maxSpeed: number, energyPercent = 100, crates = 0): void {
-    const safeMax = Math.max(1, maxSpeed);
-    const ratio = Math.max(0, Math.min(1, speed / safeMax));
-
-    // Стрелка: покой → grad_0, макс. скорость → grad_8 / grad_9.
-    const needleT =
-      NEEDLE_T_IDLE + ratio * (NEEDLE_T_MAX - NEEDLE_T_IDLE);
-
-    this.setProgress(this.progressArc, needleT);
-    this.progressArc.isVisible = ratio > 0.01;
-    this.progressArc.color = this.speedColor(ratio);
+  update(speed: number, maxSpeed: number, energyPercent = 100, _crates = 0): void {
+    const needleT = this.speedToNeedleT(speed, maxSpeed);
 
     this.needle.rotation = this.tipAngle(needleT);
-    this.needle.alpha = ratio > 0.02 ? 1 : 0.35;
+    this.needle.alpha = speed > 0.5 ? 1 : 0.35;
 
     this.speedValue.text = String(Math.round(speed));
 
@@ -161,6 +158,38 @@ export class SpeedometerUI {
     this.energyLabel.text = `⚡ ${energy}% `;
     this.energyLabel.color =
       energy > 30 ? GuiStyles.colors.text : GuiStyles.colors.danger;
+  }
+
+  /**
+   * Дефолтный maxSpeed → максимум стрелки у grad_5/6.
+   * Повышенный maxSpeed в настройках открывает зону до grad_8/9.
+   */
+  private speedToNeedleT(speed: number, maxSpeed: number): number {
+    const cap = Math.max(1, maxSpeed);
+    const spd = Math.max(0, Math.min(speed, cap));
+
+    const idle = NEEDLE_T_IDLE;
+    const soft = NEEDLE_T_DEFAULT_TOP;
+    const hard = NEEDLE_T_BOOST_TOP;
+
+    // Настройки не выше дефолта: вся шкала до soft (grad_5/6).
+    if (cap <= DEFAULT_SPEED_REF) {
+      const r = Math.min(1, spd / cap);
+      return idle + r * (soft - idle);
+    }
+
+    // 0…дефолт → idle…soft
+    if (spd <= DEFAULT_SPEED_REF) {
+      const r = spd / DEFAULT_SPEED_REF;
+      return idle + r * (soft - idle);
+    }
+
+    // дефолт…текущий maxSpeed → soft…hard (grad_8/9)
+    const r = Math.min(
+      1,
+      (spd - DEFAULT_SPEED_REF) / (cap - DEFAULT_SPEED_REF)
+    );
+    return soft + r * (hard - soft);
   }
 
   /** Угол на шкале при доле t ∈ [0…1] (как у сегментов градиента). */
@@ -177,7 +206,6 @@ export class SpeedometerUI {
       seg.thickness = 8;
       seg.color = this.speedColor((t0 + t1) * 0.5);
       seg.alpha = 0.45;
-      // rotation сегмента i = tipAngle((i+1)/N) — на него садится стрелка.
       seg.rotation = this.tipAngle(t1);
       seg.arc = ARC_SWEEP * step + 0.004;
       this.face.addControl(seg);
@@ -191,16 +219,6 @@ export class SpeedometerUI {
     el.background = "transparent";
     el.isHitTestVisible = false;
     return el;
-  }
-
-  /**
-   * Дуга до доли t: Ellipse.arc против часовой от rotation,
-   * поэтому rotation = начало дуги = кончик стрелки.
-   */
-  private setProgress(el: Ellipse, t: number): void {
-    const clamped = Math.max(0, Math.min(1, t));
-    el.arc = ARC_SWEEP * clamped;
-    el.rotation = this.tipAngle(clamped);
   }
 
   private speedColor(t: number): string {

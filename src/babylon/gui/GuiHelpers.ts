@@ -7,9 +7,20 @@ import {
   TextBlock,
 } from "@babylonjs/gui";
 import { GuiStyles } from "./GuiStyles";
+import { getActiveAudioManager } from "../audio/AudioManager";
 
 /** z-index модальных окон — поверх всего HUD */
 export const MODAL_Z_INDEX = 1000;
+
+/** Клик по UI-кнопке → button clicks.mp3 */
+export function bindUiClickSound(control: Control): void {
+  const marked = control as Control & { _uiClickSoundBound?: boolean };
+  if (marked._uiClickSoundBound) return;
+  marked._uiClickSoundBound = true;
+  control.onPointerClickObservable.add(() => {
+    getActiveAudioManager()?.playSfx("ui_click");
+  });
+}
 
 export function getHudScale(texture: AdvancedDynamicTexture): number {
   const w = texture.getSize().width;
@@ -61,6 +72,7 @@ export function stylePrimaryButton(button: Button): void {
   if (button.textBlock) {
     button.textBlock.color = GuiStyles.colors.text;
   }
+  bindUiClickSound(button);
 }
 
 export function styleSecondaryButton(button: Button): void {
@@ -73,6 +85,7 @@ export function styleSecondaryButton(button: Button): void {
   button.fontSize = GuiStyles.fontSize.body;
   button.paddingLeft = "10px";
   button.paddingRight = "10px";
+  bindUiClickSound(button);
 }
 
 export function styleGhostButton(button: Button): void {
@@ -213,6 +226,7 @@ export function createModalShell(
   if (closeButton.textBlock) {
     closeButton.textBlock.color = GuiStyles.colors.text;
   }
+  bindUiClickSound(closeButton);
   header.addControl(closeButton);
 
   const body = createVerticalStack(`${name}Body`, GuiStyles.spacing.md);
@@ -228,7 +242,8 @@ export function createModalShell(
   const footer = new StackPanel(`${name}Footer`);
   footer.isVertical = false;
   footer.width = "100%";
-  footer.height = "64px";
+  footer.height = "100px";
+  footer.paddingLeft = "40px";
   footer.spacing = 12;
   footer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
   footer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
@@ -276,6 +291,7 @@ export function createModalActionButton(
   if (btn.textBlock) {
     btn.textBlock.color = GuiStyles.colors.text;
   }
+  bindUiClickSound(btn);
   return btn;
 }
 

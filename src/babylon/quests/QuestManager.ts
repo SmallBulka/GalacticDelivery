@@ -8,7 +8,6 @@ import {
   QuestHudUI,
   ScanProgressUI,
 } from "../gui/QuestUI";
-import { RadarNavigationUI, RadarBlipData } from "../gui/RadarNavigationUI";
 import { QuestListItemState } from "../gui/QuestSwitcherUI";
 import { RingCheckpointField } from "./RingCheckpointField";
 import { ScanZone } from "./ScanZone";
@@ -34,7 +33,6 @@ export interface QuestUIBundle {
   packageChoice: PackageChoiceDialogUI;
   questHud: QuestHudUI;
   completionScreen: GameCompletionUI;
-  radar: RadarNavigationUI;
 }
 
 const BUSY_PHASES = new Set<QuestPhase>([
@@ -125,7 +123,6 @@ export class QuestManager {
 
   update(deltaTime: number): void {
     if (this.gameFinished) {
-      this.ui.radar.clear();
       this.waypoint.clear();
       return;
     }
@@ -142,7 +139,6 @@ export class QuestManager {
 
     this.updateQuestMarkersVisibility();
     this.updateCompassTarget();
-    this.ui.radar.update(shipPos, this.getShipWorldMatrix(), this.elapsed);
     this.waypoint.update(shipPos, this.getShipWorldMatrix(), this.elapsed);
 
     const questId = this.selectedQuestId;
@@ -189,121 +185,7 @@ export class QuestManager {
 
   private updateCompassTarget(): void {
     const target = this.getWaypointWorldPos();
-    const name = this.getWaypointPlanetName();
-    this.ui.radar.setNavigation(
-      target,
-      name,
-      this.getRadarFlightHint(),
-      this.buildRadarBlips()
-    );
     this.waypoint.setTarget(target);
-  }
-
-  private getRadarFlightHint(): string {
-    const id = this.selectedQuestId;
-    const phase = this.getPhase(id);
-    if (phase === QuestPhase.Completed) return "";
-
-    switch (id) {
-      case "orbit_scanner":
-        if (phase === QuestPhase.Scanning) return "Удерживайте корабль в зоне";
-        if (phase === QuestPhase.Active) return "Летите к зоне сканирования";
-        return "Заберите задание на планете";
-      case "ring_runner":
-        if (phase === QuestPhase.Active) return "Пролетите все кольца";
-        return "Заберите задание на планете";
-      case "courier_delivery":
-        if (phase === QuestPhase.Active) return "Доставьте посылку";
-        if (phase === QuestPhase.PackageChoice) return "Выберите тип посылки";
-        return "Заберите посылку на станции";
-    }
-    return "Летите к цели";
-  }
-
-  private buildRadarBlips(): RadarBlipData[] {
-    const id = this.selectedQuestId;
-    const phase = this.getPhase(id);
-    if (phase === QuestPhase.Completed) return [];
-
-    const blips: RadarBlipData[] = [];
-
-    switch (id) {
-      case "orbit_scanner":
-        if (phase === QuestPhase.Active || phase === QuestPhase.Scanning) {
-          blips.push({
-            worldPos: this.planets.scannerTarget.position,
-            color: "#5dffb0",
-            label: this.planets.scannerTarget.displayName,
-          });
-          if (this.scanZone) {
-            blips.push({
-              worldPos: this.scanZone.center,
-              color: "#00e5ff",
-              label: "Зона сканирования",
-            });
-          }
-        } else {
-          blips.push({
-            worldPos: this.planets.scannerGiver.position,
-            color: "#4a90e2",
-            label: this.planets.scannerGiver.displayName,
-          });
-        }
-        break;
-
-      case "ring_runner":
-        blips.push({
-          worldPos: this.planets.ringGiver.position,
-          color: "#ffd166",
-          label: this.planets.ringGiver.displayName,
-        });
-        break;
-
-      case "courier_delivery":
-        if (phase === QuestPhase.Active) {
-          blips.push({
-            worldPos: this.planets.courierPickup.position,
-            color: "#ff9f43",
-            label: this.planets.courierPickup.displayName,
-            dimmed: true,
-          });
-          blips.push({
-            worldPos: this.planets.courierDelivery.position,
-            color: "#ff6b6b",
-            label: this.planets.courierDelivery.displayName,
-          });
-        } else {
-          blips.push({
-            worldPos: this.planets.courierPickup.position,
-            color: "#ff9f43",
-            label: this.planets.courierPickup.displayName,
-          });
-        }
-        break;
-    }
-
-    return blips;
-  }
-
-  private getWaypointPlanetName(): string {
-    const id = this.selectedQuestId;
-    const phase = this.getPhase(id);
-    if (phase === QuestPhase.Completed) return "";
-
-    switch (id) {
-      case "orbit_scanner":
-        if (phase === QuestPhase.Active || phase === QuestPhase.Scanning) {
-          return this.planets.scannerTarget.displayName;
-        }
-        return this.planets.scannerGiver.displayName;
-      case "ring_runner":
-        return this.planets.ringGiver.displayName;
-      case "courier_delivery":
-        if (phase === QuestPhase.Active) {
-          return this.planets.courierDelivery.displayName;
-        }
-        return this.planets.courierPickup.displayName;
-    }
   }
 
   private getWaypointWorldPos(): Vector3 | null {
@@ -638,7 +520,6 @@ export class QuestManager {
 
     if (!nextIncomplete) {
       this.gameFinished = true;
-      this.ui.radar.clear();
       this.waypoint.clear();
       this.refreshList();
       this.ui.completionScreen.show({

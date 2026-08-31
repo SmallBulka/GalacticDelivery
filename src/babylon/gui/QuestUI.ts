@@ -111,7 +111,7 @@ export class ScanProgressUI {
   initialize(): void {
     this.container = new Rectangle("scanProgressContainer");
     this.container.width = "140px";
-    this.container.height = "120px";
+    this.container.height = "150px";
     this.container.thickness = 0;
     this.container.background = "transparent";
     this.container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
@@ -433,5 +433,9 @@ export class GameCompletionUI {
 
   hide(): void {
     this.overlay.isVisible = false;
+  }
+
+  isOpen(): boolean {
+    return this.overlay.isVisible;
   }
 }

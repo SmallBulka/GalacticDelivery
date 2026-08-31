@@ -82,12 +82,13 @@ export class PlanetManager {
     this.atmosphereMaterial.alphaMode = Engine.ALPHA_COMBINE;
     this.atmosphereMaterial.backFaceCulling = false;
 
-    this.glowLayer = new GlowLayer("planetQuestGlow", scene, {
+    this.glowLayer = new GlowLayer("sceneGlow", scene, {
       mainTextureFixedSize: 512,
-      blurKernelSize: 16,
+      blurKernelSize: 20,
       renderingGroupId: 0,
     });
-    this.glowLayer.intensity = 0.35;
+    // Один общий bloom: квест-маркеры + ближайшие pickup
+    this.glowLayer.intensity = 0.42;
     this.glowLayer.neutralColor = new Color4(0, 0, 0, 0);
 
     scene.setRenderingAutoClearDepthStencil(1, false, false, false);
