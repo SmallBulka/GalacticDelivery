@@ -28,7 +28,7 @@ interface RingData {
 }
 
 /**
- * Пять светящихся колец-чекпоинтов. Пролёт строго по порядку.
+ * Пять светящихся колец-чекпоинтов. Пролёт в любом порядке.
  */
 export class RingCheckpointField {
   private readonly rings: RingData[] = [];
@@ -127,24 +127,29 @@ export class RingCheckpointField {
     return this.getPassedCount() >= this.rings.length;
   }
 
-  /** Проверка пролёта следующего кольца по порядку */
+  /** Проверка пролёта любого ещё не пройденного кольца. */
   tryPassRing(shipPos: Vector3): boolean {
-    const next = this.rings.find((r) => !r.passed);
-    if (!next || !this.visible) return false;
+    if (!this.visible) return false;
 
-    const toShip = shipPos.subtract(next.center);
-    const alongNormal = Vector3.Dot(toShip, next.normal);
-    if (Math.abs(alongNormal) > PLANE_THICKNESS) return false;
+    for (const ring of this.rings) {
+      if (ring.passed) continue;
 
-    const inPlane = toShip.subtract(next.normal.scale(alongNormal));
-    const dist = inPlane.length();
-    if (dist < RING_INNER || dist > RING_OUTER) return false;
+      const toShip = shipPos.subtract(ring.center);
+      const alongNormal = Vector3.Dot(toShip, ring.normal);
+      if (Math.abs(alongNormal) > PLANE_THICKNESS) continue;
 
-    next.passed = true;
-    next.torus.isVisible = false;
-    next.particles.stop();
-    next.material.emissiveColor = new Color3(0.2, 1, 0.45);
-    return true;
+      const inPlane = toShip.subtract(ring.normal.scale(alongNormal));
+      const dist = inPlane.length();
+      if (dist < RING_INNER || dist > RING_OUTER) continue;
+
+      ring.passed = true;
+      ring.torus.isVisible = false;
+      ring.particles.stop();
+      ring.material.emissiveColor = new Color3(0.2, 1, 0.45);
+      return true;
+    }
+
+    return false;
   }
 
   animate(elapsed: number): void {

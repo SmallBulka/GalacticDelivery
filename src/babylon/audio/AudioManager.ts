@@ -12,7 +12,13 @@ export interface AudioVolumeSettings {
 }
 
 export type MusicId = "ambient" | string;
-export type SfxId = "ui_click" | "pickup" | string;
+export type SfxId =
+  | "ui_click"
+  | "pickup"
+  | "collision"
+  | "quest_start"
+  | "ring_pass"
+  | string;
 
 const STORAGE_KEY = "galacticDelivery.audioVolumes";
 
@@ -23,6 +29,9 @@ export const AUDIO_PATHS = {
   },
   sfx: {
     ui_click: "./audio/button%20clicks.mp3",
+    collision: "./audio/material-sound-effect-collision-crush.mp3",
+    quest_start: "./audio/task_picking.mp3",
+    ring_pass: "./audio/zvezda--poluchena.mp3",
   },
 } as const;
 

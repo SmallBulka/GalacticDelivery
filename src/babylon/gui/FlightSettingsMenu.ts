@@ -10,6 +10,7 @@ import {
 import {
   FlightSettingsConfig,
   DEFAULT_FLIGHT_SETTINGS,
+  resetFlightSettings,
 } from "../scenes/spaceships/FlightSettingsConfig";
 import {
   AudioManager,
@@ -18,6 +19,7 @@ import {
 } from "../audio/AudioManager";
 import { GuiStyles } from "./GuiStyles";
 import {
+  createModalActionButton,
   createModalShell,
   stylePrimaryButton,
   styleSectionHeader,
@@ -59,6 +61,8 @@ export class FlightSettingsMenu {
   private overlay!: Rectangle;
   private valueLabels = new Map<SettingKey, TextBlock>();
   private audioValueLabels = new Map<AudioKey, TextBlock>();
+  private flightSliders = new Map<SettingKey, Slider>();
+  private syncingSliders = false;
 
   constructor(
     private advancedTexture: AdvancedDynamicTexture,
@@ -104,13 +108,13 @@ export class FlightSettingsMenu {
       this.advancedTexture,
       "settings",
       520,
-      620
+      640
     );
     this.overlay = shell.overlay;
     shell.title.text = "Настройки";
     shell.closeButton.onPointerClickObservable.add(() => this.close());
 
-    shell.body.height = "480px";
+    shell.body.height = "470px";
 
     const flightHeader = new TextBlock("settingsFlightHeader");
     styleSectionHeader(flightHeader, "ПОЛЁТ");
@@ -137,6 +141,15 @@ export class FlightSettingsMenu {
     for (const def of AUDIO_DEFINITIONS) {
       this.addAudioRow(shell.body, def, volumes);
     }
+
+    const resetBtn = createModalActionButton(
+      "settingsResetFlight",
+      "Сбросить настройки",
+      "secondary",
+      220
+    );
+    resetBtn.onPointerClickObservable.add(() => this.resetFlightToDefaults());
+    shell.footer.addControl(resetBtn);
   }
 
   private addFlightRow(
@@ -172,6 +185,7 @@ export class FlightSettingsMenu {
     slider.thumbColor = GuiStyles.colors.sliderThumb;
     slider.isThumbCircle = true;
     row.addControl(slider);
+    this.flightSliders.set(def.key, slider);
 
     const valueLabel = new TextBlock(`value_${def.key}`);
     valueLabel.color = GuiStyles.colors.textMuted;
@@ -186,6 +200,7 @@ export class FlightSettingsMenu {
 
     slider.onValueChangedObservable.add((value) => {
       valueLabel.text = this.formatValue(value, def.decimals);
+      if (this.syncingSliders) return;
       this.onSettingsChange({ [def.key]: value });
     });
   }
@@ -247,7 +262,27 @@ export class FlightSettingsMenu {
     });
   }
 
+  private syncFlightSliders(settings: FlightSettingsConfig): void {
+    this.syncingSliders = true;
+    for (const def of SETTING_DEFINITIONS) {
+      const slider = this.flightSliders.get(def.key);
+      const valueLabel = this.valueLabels.get(def.key);
+      if (!slider || !valueLabel) continue;
+      const value = settings[def.key];
+      slider.value = value;
+      valueLabel.text = this.formatValue(value, def.decimals);
+    }
+    this.syncingSliders = false;
+  }
+
+  private resetFlightToDefaults(): void {
+    const defaults = resetFlightSettings();
+    this.onSettingsChange(defaults);
+    this.syncFlightSliders(defaults);
+  }
+
   open(): void {
+    this.syncFlightSliders(this.getSettings());
     this.overlay.isVisible = true;
   }
 

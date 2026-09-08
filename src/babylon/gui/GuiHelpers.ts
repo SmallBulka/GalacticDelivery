@@ -244,10 +244,11 @@ export function createModalShell(
   footer.width = "100%";
   footer.height = "100px";
   footer.paddingLeft = "40px";
+  footer.paddingTop = "20px";
   footer.spacing = 12;
   footer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
   footer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  footer.paddingBottom = "14px";
+  footer.paddingBottom = "30px";
   footer.isHitTestVisible = false;
   panel.addControl(footer);
 

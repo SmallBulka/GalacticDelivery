@@ -1,4 +1,5 @@
 import { PhysicsAggregate, Scene, Vector3 } from "@babylonjs/core";
+import { getActiveAudioManager } from "../audio/AudioManager";
 import { Planet } from "../planets/Planet";
 import { PlanetManager } from "../planets/PlanetManager";
 import {
@@ -26,6 +27,16 @@ import {
 const MARKER_RADIUS = 3500;
 const DELIVERY_DISTANCE = 180;
 const FRAGILE_SPEED_LIMIT = 75;
+/**
+ * После взятия посылки не считаем удары/манёвры несколько секунд —
+ * иначе срабатывают контакты с планетой выдачи и обычный поворот.
+ */
+const FRAGILE_PICKUP_GRACE_SEC = 2.5;
+/** Резкий манёвр: мгновенный разворот курса (dot направлений скорости). */
+const FRAGILE_HEADING_DOT_MIN = 0.82;
+const FRAGILE_MANEUVER_MIN_SPEED = 45;
+const FRAGILE_DAMAGE_TOAST =
+  "Груз поврежден, вернитесь и возьмите новый";
 
 export interface QuestUIBundle {
   questDialog: QuestDialogUI;
@@ -66,6 +77,11 @@ export class QuestManager {
   private packageType?: PackageType;
   private courierTimer = 0;
   private fragileSpeedViolations = 0;
+  /** Секунды до конца иммунитета после взятия хрупкой посылки. */
+  private fragileGraceRemaining = 0;
+  private fragilePrevVelocityDir = new Vector3(0, 0, 1);
+  private fragilePrevSpeed = 0;
+  private fragileHeadingReady = false;
 
   private elapsed = 0;
   private insideGiverAtmosphere = false;
@@ -79,7 +95,10 @@ export class QuestManager {
     private getShipPosition: () => Vector3,
     private getShipSpeed: () => number,
     private getShipWorldMatrix: () => import("@babylonjs/core").Matrix,
-    private onToast: (message: string) => void,
+    private onToast: (
+      message: string,
+      options?: { critical?: boolean; questComplete?: boolean; questTitle?: string }
+    ) => void,
     private onQuestListRefresh: (items: QuestListItemState[]) => void
   ) {
     for (const q of ALL_QUESTS) {
@@ -240,6 +259,7 @@ export class QuestManager {
     this.setPhase("orbit_scanner", QuestPhase.Active);
     this.questCleanliness = 100;
     this.scanResets = 0;
+    this.playQuestStartSfx();
 
     this.planets.scannerTarget.markQuestTarget(
       "destination",
@@ -336,6 +356,7 @@ export class QuestManager {
     this.setPhase("ring_runner", QuestPhase.Active);
     this.questCleanliness = 100;
     this.ringTimer = RING_RUNNER_QUEST.ringTimeLimitSeconds ?? 30;
+    this.playQuestStartSfx();
 
     this.ringField = new RingCheckpointField(
       this.scene,
@@ -356,7 +377,9 @@ export class QuestManager {
     if (!this.ringField) return;
 
     this.ringTimer -= dt;
-    this.ringField.tryPassRing(shipPos);
+    if (this.ringField.tryPassRing(shipPos)) {
+      getActiveAudioManager()?.playSfx("ring_pass");
+    }
 
     const passed = this.ringField.getPassedCount();
     const total = this.ringField.getTotalCount();
@@ -420,10 +443,15 @@ export class QuestManager {
     this.packageType = type;
     this.questCleanliness = 100;
     this.fragileSpeedViolations = 0;
+    this.fragileGraceRemaining =
+      type === "fragile" ? FRAGILE_PICKUP_GRACE_SEC : 0;
+    this.fragileHeadingReady = false;
+    this.fragilePrevSpeed = 0;
     this.courierTimer =
       type === "fragile"
         ? COURIER_DELIVERY_QUEST.fragileDeliverySeconds ?? 120
         : 0;
+    this.playQuestStartSfx();
 
     this.setPhase("courier_delivery", QuestPhase.Active);
     this.planets.courierPickup.setQuestMarkerVisible(false);
@@ -443,8 +471,28 @@ export class QuestManager {
     this.updateCompassTarget();
   }
 
+  /** Сильный удар: хрупкий груз провален (после grace-периода). */
+  notifyStrongImpact(): void {
+    if (this.getPhase("courier_delivery") !== QuestPhase.Active) return;
+    if (this.packageType !== "fragile") return;
+    if (this.fragileGraceRemaining > 0) return;
+    this.failFragileCargo();
+  }
+
   private updateCourierDelivery(shipPos: Vector3, dt: number): void {
     if (this.packageType === "fragile") {
+      if (this.fragileGraceRemaining > 0) {
+        this.fragileGraceRemaining = Math.max(0, this.fragileGraceRemaining - dt);
+      }
+
+      if (
+        this.fragileGraceRemaining <= 0 &&
+        this.isSharpFragileManeuver()
+      ) {
+        this.failFragileCargo();
+        return;
+      }
+
       this.courierTimer -= dt;
       const speed = this.getShipSpeed();
       if (speed > FRAGILE_SPEED_LIMIT) {
@@ -458,14 +506,7 @@ export class QuestManager {
       );
 
       if (this.courierTimer <= 0) {
-        this.questCleanliness = 20;
-        this.ui.questHud.setVisible(false);
-        this.onToast("Посылка повреждена! Вернитесь на Станцию Альфа.");
-        this.setPhase("courier_delivery", QuestPhase.Available);
-        this.insideGiverAtmosphere = false;
-        this.planets.courierDelivery.setQuestMarkerVisible(false);
-        this.refreshList();
-        this.updateCompassTarget();
+        this.failFragileCargo();
         return;
       }
     }
@@ -483,6 +524,60 @@ export class QuestManager {
         detail
       );
     }
+  }
+
+  /**
+   * Резкий манёвр = мгновенный скачок курса (как от удара/рывка),
+   * а не обычный поворот стиком.
+   */
+  private isSharpFragileManeuver(): boolean {
+    const body = this.getShipAggregate()?.body;
+    if (!body) return false;
+
+    const velocity = body.getLinearVelocity();
+    const speed = velocity.length();
+
+    if (speed < 1) {
+      this.fragileHeadingReady = false;
+      this.fragilePrevSpeed = speed;
+      return false;
+    }
+
+    const dir = velocity.scale(1 / speed);
+    if (!this.fragileHeadingReady) {
+      this.fragilePrevVelocityDir.copyFrom(dir);
+      this.fragilePrevSpeed = speed;
+      this.fragileHeadingReady = true;
+      return false;
+    }
+
+    const headingDot = Vector3.Dot(this.fragilePrevVelocityDir, dir);
+    const wasFast =
+      this.fragilePrevSpeed >= FRAGILE_MANEUVER_MIN_SPEED &&
+      speed >= FRAGILE_MANEUVER_MIN_SPEED * 0.55;
+    this.fragilePrevVelocityDir.copyFrom(dir);
+    this.fragilePrevSpeed = speed;
+
+    // ~35°+ за один кадр при высокой скорости — недостижимо нормальным управлением
+    return wasFast && headingDot < FRAGILE_HEADING_DOT_MIN;
+  }
+
+  private failFragileCargo(): void {
+    if (this.getPhase("courier_delivery") !== QuestPhase.Active) return;
+    if (this.packageType !== "fragile") return;
+
+    this.packageType = undefined;
+    this.courierTimer = 0;
+    this.fragileSpeedViolations = 0;
+    this.fragileGraceRemaining = 0;
+    this.fragileHeadingReady = false;
+    this.questCleanliness = 20;
+    this.setPhase("courier_delivery", QuestPhase.Available);
+    this.insideGiverAtmosphere = false;
+    this.planets.courierDelivery.setQuestMarkerVisible(false);
+    this.refreshList();
+    this.updateCompassTarget();
+    this.onToast(FRAGILE_DAMAGE_TOAST, { critical: true });
   }
 
   private finishQuest(questId: QuestId, title: string, detail: string): void {
@@ -512,7 +607,7 @@ export class QuestManager {
       detail,
     });
 
-    this.onToast(`${title} — выполнено!`);
+    this.onToast("", { questComplete: true, questTitle: title });
 
     const nextIncomplete = ALL_QUESTS.find(
       (q) => this.getPhase(q.id) !== QuestPhase.Completed
@@ -643,5 +738,9 @@ export class QuestManager {
 
   private setPhase(id: QuestId, phase: QuestPhase): void {
     this.phases.set(id, phase);
+  }
+
+  private playQuestStartSfx(): void {
+    getActiveAudioManager()?.playSfx("quest_start");
   }
 }

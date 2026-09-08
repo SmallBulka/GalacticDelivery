@@ -1,50 +1,60 @@
-# React + TypeScript + Vite
+# Galactic Delivery
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Космическая 3D-игра-курьер на **React + Vite + Babylon.js + Havok**.  
+Вы управляете кораблём, следите за энергией, собираете топливные контейнеры и выполняете задания на планетах.
 
-Currently, two official plugins are available:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Запуск
 
-## Expanding the ESLint configuration
+Нужны **Node.js 18+** и npm.
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm install
+npm run dev
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+Откройте адрес из терминала (обычно `http://localhost:5173`).
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+Сборка:
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
+```bash
+npm run build
+npm run preview
+```
+
+## Как играть
+
+1. **Энергия** тратится в полёте (полоска / процент на спидометре слева внизу).  
+   На нуле тяга отключается — нажмите **R**, чтобы сбросить позицию и заряд.
+2. **Банки** рядом с кораблём пополняют энергию на **+10%**.
+3. **Задания** — планеты с цветной атмосферой и кольцом. Список слева; маркер над кораблём указывает цель.
+4. После загрузки при первом запуске откроется короткое введение. Полная справка — кнопка **«?»**.
+
+### Управление
+
+| Клавиши | Действие |
+|--------|----------|
+| W / S | вперёд / назад |
+| A / D | рысканье |
+| ↑ ↓ ← → | тангаж и крен |
+| 1 | камера от первого лица |
+| 2 | камера от третьего лица |
+| R | перезапуск (позиция + заряд) |
+
+Геймпад: левый стик — тяга и рысканье, правый — тангаж и крен.  
+Громкость и параметры полёта — **«⚙ Настройки»**.
+
+## Стек
+
+- React 19, Vite 6, TypeScript  
+- `@babylonjs/core` / gui / loaders  
+- `@babylonjs/havok` (физика)
+
+## Структура (кратко)
+
+```
+src/babylon/     — сцена, корабль, планеты, квесты, HUD
+public/model/    — GLB модели
+public/textures/ — текстуры и skybox
+public/audio/    — музыка и SFX
 ```

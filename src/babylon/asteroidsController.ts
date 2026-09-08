@@ -42,7 +42,6 @@ export default class AsteroidsController {
   private scene: Scene;
   private parentAsteroid!: Mesh;
   private asteroidMaterial!: StandardMaterial;
-  private worldSize: number;
   private asteroidsCount = 6000;
   private physicsRoot: TransformNode;
   /** xyz xyz … длина asteroidsCount * 3 */
@@ -50,9 +49,8 @@ export default class AsteroidsController {
   private activePhysics = new Map<number, ActiveAsteroidPhysics>();
   private frameCounter = 0;
 
-  constructor(scene: Scene, worldSize = WORLD_SIZE) {
+  constructor(scene: Scene, _worldSize = WORLD_SIZE) {
     this.scene = scene;
-    this.worldSize = worldSize;
     this.createAsteroidMaterial();
     this.createParentAsteroid();
     this.physicsRoot = new TransformNode("asteroidPhysicsRoot", this.scene);
@@ -83,9 +81,6 @@ export default class AsteroidsController {
     onProgress?: (done: number, total: number) => void
   ): Promise<void> {
     await this.generateAsteroidField(onProgress);
-    console.log(
-      `Asteroids: ${this.asteroidsCount} thin instances, physics ≤${MAX_ACTIVE_PHYSICS} near ship (${this.worldSize}³)`
-    );
   }
 
   /**

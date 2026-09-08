@@ -1,25 +1,30 @@
-import React, { useEffect, useRef } from 'react';
-import { SpaceScene } from './babylon/scenes/SpaceScene';
-
+import React, { useEffect, useRef } from "react";
+import { SpaceScene } from "./babylon/scenes/SpaceScene";
 
 export const BabylonScene: React.FC = () => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    useEffect(() => {
-        if (!canvasRef.current) return;
+  useEffect(() => {
+    if (!canvasRef.current) return;
 
-        const physicsScene = new SpaceScene(canvasRef.current);
+    const physicsScene = new SpaceScene(canvasRef.current);
 
-        const handleResize = () => {
-            physicsScene.resize();
-        };
+    const handleResize = () => {
+      physicsScene.resize();
+    };
 
-        window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
-        return () => {
-            window.removeEventListener('resize', handleResize);
-        };
-    }, []);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      physicsScene.dispose();
+    };
+  }, []);
 
-    return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ width: "100%", height: "100%", overflow: "hidden" }}
+    />
+  );
 };

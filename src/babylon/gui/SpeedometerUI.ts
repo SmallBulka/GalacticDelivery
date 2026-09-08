@@ -42,7 +42,6 @@ export class SpeedometerUI {
   private needle!: Rectangle;
   private speedValue!: TextBlock;
   private unitLabel!: TextBlock;
-  private energyLabel!: TextBlock;
   private size = SIZE;
 
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
@@ -128,16 +127,6 @@ export class SpeedometerUI {
     this.unitLabel.isHitTestVisible = false;
     this.face.addControl(this.unitLabel);
 
-    this.energyLabel = new TextBlock("speedometerEnergy");
-    this.energyLabel.color = GuiStyles.colors.text;
-    this.energyLabel.fontSize = GuiStyles.fontSize.caption;
-    this.energyLabel.fontSize = 13;
-    this.energyLabel.fontWeight = "600";
-    this.energyLabel.height = "20px";
-    this.energyLabel.top = "35px";
-    this.energyLabel.isHitTestVisible = false;
-    this.face.addControl(this.energyLabel);
-
     this.update(0, DEFAULT_SPEED_REF);
   }
 
@@ -146,18 +135,13 @@ export class SpeedometerUI {
     this.root.scaleY = scale;
   }
 
-  update(speed: number, maxSpeed: number, energyPercent = 100, _crates = 0): void {
+  update(speed: number, maxSpeed: number): void {
     const needleT = this.speedToNeedleT(speed, maxSpeed);
 
     this.needle.rotation = this.tipAngle(needleT);
     this.needle.alpha = speed > 0.5 ? 1 : 0.35;
 
     this.speedValue.text = String(Math.round(speed));
-
-    const energy = Math.max(0, Math.min(100, Math.round(energyPercent)));
-    this.energyLabel.text = `⚡ ${energy}% `;
-    this.energyLabel.color =
-      energy > 30 ? GuiStyles.colors.text : GuiStyles.colors.danger;
   }
 
   /**

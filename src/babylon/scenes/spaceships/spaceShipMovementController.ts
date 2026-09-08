@@ -1,4 +1,4 @@
-import { Mesh, PhysicsAggregate, PhysicsBody, Scene, Vector3 } from "@babylonjs/core";
+import { PhysicsAggregate, PhysicsBody, Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import { IInputState } from "./IInputState";
 import {
   FlightSettingsConfig,
@@ -14,7 +14,7 @@ export default class SpaceShipMovementController {
   constructor(
     private scene: Scene,
     private spaceShipAggregate: PhysicsAggregate,
-    private spaceShipBox: Mesh,
+    private shipTransform: TransformNode,
     private getInput: () => IInputState,
     config?: Partial<FlightSettingsConfig>
   ) {
@@ -48,7 +48,7 @@ export default class SpaceShipMovementController {
   private applyThrust(body: PhysicsBody, thrust: number): void {
     if (thrust === 0) return;
 
-    const forward = this.spaceShipBox.getDirection(Vector3.Forward());
+    const forward = this.shipTransform.getDirection(Vector3.Forward());
     const velocity = body.getLinearVelocity();
     const forwardSpeed = Vector3.Dot(velocity, forward);
     const targetSpeed = thrust * this.config.maxSpeed;
@@ -63,9 +63,9 @@ export default class SpaceShipMovementController {
   }
 
   private applyRotation(body: PhysicsBody, input: IInputState): void {
-    const right = this.spaceShipBox.getDirection(Vector3.Right());
-    const forward = this.spaceShipBox.getDirection(Vector3.Forward());
-    const up = this.spaceShipBox.getDirection(Vector3.Up());
+    const right = this.shipTransform.getDirection(Vector3.Right());
+    const forward = this.shipTransform.getDirection(Vector3.Forward());
+    const up = this.shipTransform.getDirection(Vector3.Up());
 
     const angularVelocity = right
       .scale(-input.pitch * this.config.rotationSpeed)

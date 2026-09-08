@@ -45,7 +45,7 @@ const KEY_LABELS: Record<TrackedKeyCode, string> = {
 /** Центры стиков на keyboardInput.png (доли ширины/высоты изображения). */
 const LEFT_STICK_CENTER = { x: 0.24, y: 0.40 };
 const RIGHT_STICK_CENTER = { x: 0.625, y: 0.525 };
-const STICK_TRAVEL_PX = 12;
+const STICK_TRAVEL_PX = 6;
 const GAMEPAD_IMAGE_H = 196;
 const PANEL_HEIGHT = 400;
 const TOGGLE_WIDTH = 28;
@@ -379,8 +379,9 @@ export class KeyboardInputDisplayUI {
 
   private createKeyGrid(name: string): Grid {
     const grid = new Grid(`keyboardGrid_${name}`);
-    grid.width = "100%";
+    grid.width = "90%";
     grid.height = "90px";
+    grid.paddingTop = "10px";
     grid.addColumnDefinition(1, false);
     grid.addColumnDefinition(1, false);
     grid.addColumnDefinition(1, false);
@@ -397,7 +398,7 @@ export class KeyboardInputDisplayUI {
     column: number
   ): void {
     const cell = new Rectangle(`keyboardKey_${code}`);
-    cell.width = "48px";
+    cell.width = "38px";
     cell.height = "38px";
     cell.cornerRadius = GuiStyles.radius.sm;
     cell.isPointerBlocker = false;

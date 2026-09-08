@@ -3,6 +3,8 @@
  */
 export const ENERGY_MAX = 100;
 export const ENERGY_PER_CRATE = 10;
+/** Штраф энергии при сильном столкновении. */
+export const ENERGY_COLLISION_PENALTY = 10;
 /** Сколько единиц пути нужно пролететь, чтобы потратить 1% заряда. */
 export const DISTANCE_PER_ENERGY_PERCENT = 90;
 
@@ -73,5 +75,19 @@ export class ShipEnergy {
     if (this.energy > 0) {
       this.emptyNotified = false;
     }
+  }
+
+  /**
+   * Штраф за столкновение. Возвращает true, если заряд только что закончился.
+   */
+  drainPercent(amount: number): boolean {
+    if (amount <= 0 || this.energy <= 0) return false;
+    const before = this.energy;
+    this.energy = Math.max(0, this.energy - amount);
+    if (this.energy <= 0 && before > 0 && !this.emptyNotified) {
+      this.emptyNotified = true;
+      return true;
+    }
+    return false;
   }
 }

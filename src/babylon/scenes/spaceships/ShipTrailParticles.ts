@@ -1,6 +1,6 @@
 import {
+  AbstractMesh,
   Color4,
-  Mesh,
   ParticleSystem,
   Scene,
   Texture,
@@ -13,7 +13,7 @@ import {
 export class ShipTrailParticles {
   private readonly particles: ParticleSystem;
 
-  constructor(scene: Scene, emitter: Mesh) {
+  constructor(scene: Scene, emitter: AbstractMesh) {
     const ps = new ParticleSystem("shipTrail", 450, scene);
     ps.particleTexture = new Texture("./textures/01.jpg", scene);
     ps.emitter = emitter;

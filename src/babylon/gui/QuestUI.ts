@@ -199,6 +199,7 @@ export class ScanProgressUI {
 export class QuestHudUI {
   private container!: Rectangle;
   private label!: TextBlock;
+  private alertMode = false;
 
   constructor(private advancedTexture: AdvancedDynamicTexture) {}
 
@@ -213,9 +214,10 @@ export class QuestHudUI {
     this.container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.container.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.container.top = "-150px";
+    this.container.zIndex = 860;
     this.container.isVisible = false;
     this.container.isPointerBlocker = false;
-    this.container.clipChildren = true;
+    this.container.clipChildren = false;
     this.advancedTexture.addControl(this.container);
 
     this.label = new TextBlock("questHudLabel");
@@ -229,6 +231,7 @@ export class QuestHudUI {
   }
 
   setVisible(v: boolean): void {
+    if (!v && this.alertMode) return;
     this.container.isVisible = v;
     if (!v) {
       this.label.text = "";
@@ -236,8 +239,41 @@ export class QuestHudUI {
   }
 
   setText(text: string): void {
+    if (this.alertMode) return;
     if (this.label.text === text) return;
     this.label.text = text;
+  }
+
+  /** Крупное предупреждение (повреждение груза и т.п.). */
+  showAlert(text: string): void {
+    this.alertMode = true;
+    this.container.width = "min(620px, 90%)";
+    this.container.height = "64px";
+    this.container.background = "rgba(80, 12, 20, 0.96)";
+    this.container.color = GuiStyles.colors.danger;
+    this.container.thickness = 2;
+    this.label.color = "#ffe8ec";
+    this.label.fontSize = 18;
+    this.label.fontWeight = "700";
+    this.label.textWrapping = true;
+    this.label.text = text;
+    this.container.isVisible = true;
+  }
+
+  clearAlert(): void {
+    if (!this.alertMode) return;
+    this.alertMode = false;
+    this.container.width = "360px";
+    this.container.height = "40px";
+    this.container.background = GuiStyles.colors.panelBg;
+    this.container.color = GuiStyles.colors.border;
+    this.container.thickness = 1;
+    this.label.color = GuiStyles.colors.text;
+    this.label.fontSize = 18;
+    this.label.fontWeight = "normal";
+    this.label.textWrapping = false;
+    this.label.text = "";
+    this.container.isVisible = false;
   }
 }
 

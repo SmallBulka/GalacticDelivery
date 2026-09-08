@@ -1,9 +1,11 @@
 import {
+  AbstractMesh,
   Scene,
   UniversalCamera,
   Vector3,
   Quaternion,
-  Mesh,
+  TransformNode,
+  KeyboardEventTypes,
 } from "@babylonjs/core";
 import { IInputState } from "./IInputState";
 
@@ -37,15 +39,19 @@ const DEFAULT_CAMERA_CONFIG: ICameraConfig = {
 
 /**
  * Follow-камера. Создаётся без корабля; цель вешается через attachTarget после CreateShip.
+ * Клавиши: 1 — первое лицо, 2 — третье лицо.
  */
 export class CameraManager {
   private readonly camera: UniversalCamera;
-  private targetMesh: Mesh | null = null;
+  private targetNode: TransformNode | null = null;
+  private visibleMesh: AbstractMesh | null = null;
   private mode: CameraMode = CameraMode.ThirdPerson;
   private readonly config: ICameraConfig;
   private readonly scratchScale = new Vector3();
   private readonly scratchRotation = new Quaternion();
   private readonly scratchPosition = new Vector3();
+  /** 0…1, затухает со временем. */
+  private shakeTrauma = 0;
 
   constructor(scene: Scene, customConfig?: Partial<ICameraConfig>) {
     this.config = {
@@ -66,47 +72,85 @@ export class CameraManager {
     this.camera.maxZ = this.config.maxZ;
     this.camera.inputs.clear();
     scene.activeCamera = this.camera;
+
+    this.bindModeHotkeys(scene);
   }
 
   public getCamera(): UniversalCamera {
     return this.camera;
   }
 
+  public getMode(): CameraMode {
+    return this.mode;
+  }
+
   public hasTarget(): boolean {
-    return this.targetMesh !== null;
+    return this.targetNode !== null;
   }
 
   /** Привязать корабль после его создания и сразу выровнять камеру. */
-  public attachTarget(mesh: Mesh): void {
-    this.targetMesh = mesh;
+  public attachTarget(node: TransformNode, visibleMesh?: AbstractMesh): void {
+    this.targetNode = node;
+    this.visibleMesh = visibleMesh ?? (node instanceof AbstractMesh ? node : null);
     this.snapToTarget();
   }
 
   public setMode(mode: CameraMode): void {
+    if (this.mode === mode) return;
     this.mode = mode;
-    if (!this.targetMesh) return;
+    if (!this.targetNode) return;
 
-    if (this.mode === CameraMode.FirstPerson) {
-      this.targetMesh.isVisible = false;
-    } else {
-      this.targetMesh.isVisible = true;
+    if (this.visibleMesh) {
+      this.visibleMesh.isVisible = this.mode !== CameraMode.FirstPerson;
     }
     this.snapToTarget();
   }
 
   /** Обновление follow (вызывать в beforeRender с актуальным IInputState). */
   public update(input: IInputState, deltaTime: number): void {
-    if (!this.targetMesh || deltaTime <= 0) return;
+    if (!this.targetNode || deltaTime <= 0) return;
 
     if (this.mode === CameraMode.ThirdPerson) {
       this.updateThirdPersonFollow(input, deltaTime);
     } else {
       this.updateFirstPersonFollow();
     }
+
+    this.applyShake(deltaTime);
+  }
+
+  /** Тряска камеры при ударе. intensity ≈ 0.35…1. */
+  public shake(intensity = 0.55): void {
+    this.shakeTrauma = Math.min(1, this.shakeTrauma + Math.max(0, intensity));
+  }
+
+  private applyShake(deltaTime: number): void {
+    if (this.shakeTrauma <= 0) return;
+
+    const trauma = this.shakeTrauma * this.shakeTrauma;
+    const maxOffset = this.mode === CameraMode.FirstPerson ? 0.22 : 0.55;
+    const mag = trauma * maxOffset;
+    this.camera.position.x += (Math.random() * 2 - 1) * mag;
+    this.camera.position.y += (Math.random() * 2 - 1) * mag;
+    this.camera.position.z += (Math.random() * 2 - 1) * mag * 0.35;
+
+    this.shakeTrauma = Math.max(0, this.shakeTrauma - deltaTime * 2.8);
+  }
+
+  private bindModeHotkeys(scene: Scene): void {
+    scene.onKeyboardObservable.add((kbInfo) => {
+      if (kbInfo.type !== KeyboardEventTypes.KEYDOWN) return;
+      const code = kbInfo.event.code;
+      if (code === "Digit1" || code === "Numpad1") {
+        this.setMode(CameraMode.FirstPerson);
+      } else if (code === "Digit2" || code === "Numpad2") {
+        this.setMode(CameraMode.ThirdPerson);
+      }
+    });
   }
 
   private snapToTarget(): void {
-    if (!this.targetMesh) return;
+    if (!this.targetNode) return;
 
     const offset =
       this.mode === CameraMode.FirstPerson
@@ -114,7 +158,7 @@ export class CameraManager {
         : this.config.followOffset;
     const worldPos = Vector3.TransformCoordinates(
       offset,
-      this.targetMesh.getWorldMatrix()
+      this.targetNode.getWorldMatrix()
     );
     this.camera.position.copyFrom(worldPos);
 
@@ -124,9 +168,9 @@ export class CameraManager {
   }
 
   private updateThirdPersonFollow(input: IInputState, deltaTime: number): void {
-    if (!this.targetMesh) return;
+    if (!this.targetNode) return;
 
-    const shipTransform = this.targetMesh.getWorldMatrix();
+    const shipTransform = this.targetNode.getWorldMatrix();
     const targetPosition = Vector3.TransformCoordinates(
       this.config.followOffset,
       shipTransform
@@ -159,11 +203,11 @@ export class CameraManager {
   }
 
   private updateFirstPersonFollow(): void {
-    if (!this.targetMesh) return;
+    if (!this.targetNode) return;
 
     const worldCockpitPos = Vector3.TransformCoordinates(
       this.config.cockpitOffset,
-      this.targetMesh.getWorldMatrix()
+      this.targetNode.getWorldMatrix()
     );
     this.camera.position.copyFrom(worldCockpitPos);
 
@@ -173,11 +217,11 @@ export class CameraManager {
   }
 
   private getTargetRotation(): Quaternion {
-    if (!this.targetMesh) {
+    if (!this.targetNode) {
       return Quaternion.Identity();
     }
 
-    this.targetMesh
+    this.targetNode
       .getWorldMatrix()
       .decompose(
         this.scratchScale,
