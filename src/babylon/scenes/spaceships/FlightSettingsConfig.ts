@@ -12,8 +12,8 @@ export interface FlightSettingsConfig {
 }
 
 export const DEFAULT_FLIGHT_SETTINGS: FlightSettingsConfig = {
-  maxSpeed: 100,
-  thrustAcceleration: 20,
+  maxSpeed: 135,
+  thrustAcceleration: 30,
   rotationSpeed: 0.5,
   linearDamping: 0.95,
   angularDamping: 0.8,
